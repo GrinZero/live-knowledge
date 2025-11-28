@@ -2,11 +2,8 @@
 @import './base.css';
 
 body {
-  overflow: auto;
-  background-image: url('./wavy-lines.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  overflow: hidden;
+  background-image: none;
   user-select: none;
 }
 

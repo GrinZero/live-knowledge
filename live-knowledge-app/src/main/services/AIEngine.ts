@@ -1,141 +1,148 @@
 import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { Tag, Insight, Action, ContextWindow } from '../../renderer/src/types'
 import { ContextMemory } from './ContextMemory'
 
 export class AIEngine {
   private openai: OpenAI | null = null
+  private gemini: GoogleGenerativeAI | null = null
+  private provider: 'openai' | 'gemini' | 'none' = 'none'
+  private modelName: string = ''
   private contextStore: ContextMemory
   private isEnabled: boolean = false
 
-  constructor(apiKey?: string) {
-    if (apiKey) {
+  constructor(apiKey?: string, provider?: 'openai' | 'gemini') {
+    // Prefer explicit provider; otherwise infer from environment
+    const geminiKey = provider === 'gemini' ? apiKey : process.env.GEMINI_API_KEY
+    const openaiKey = provider === 'openai' ? apiKey : process.env.OPENAI_API_KEY
+
+    if (geminiKey) {
       try {
-        this.openai = new OpenAI({
-          apiKey: apiKey
-        })
+        this.gemini = new GoogleGenerativeAI(geminiKey)
+        this.provider = 'gemini'
+        this.modelName = process.env.AI_MODEL || 'gemini-1.5-flash'
+        this.isEnabled = true
+      } catch (error) {
+        console.warn('Failed to initialize Gemini client:', error)
+      }
+    }
+
+    if (!this.isEnabled && openaiKey) {
+      try {
+        this.openai = new OpenAI({ apiKey: openaiKey })
+        this.provider = 'openai'
+        this.modelName = process.env.AI_MODEL || 'gpt-4-turbo-preview'
         this.isEnabled = true
       } catch (error) {
         console.warn('Failed to initialize OpenAI client:', error)
-        this.isEnabled = false
       }
-    } else {
-      console.warn('OpenAI API key not provided, AI features will be disabled')
-      this.isEnabled = false
+    }
+
+    if (!this.isEnabled) {
+      console.warn('No AI provider configured, AI features will use fallback')
+      this.provider = 'none'
     }
     this.contextStore = new ContextMemory()
   }
 
   async generateInsights(tags: Tag[], context: ContextWindow): Promise<Insight[]> {
-    // Return empty insights if AI is not enabled
-    if (!this.isEnabled || !this.openai) {
+    if (!this.isEnabled) {
       console.warn('AI features are disabled, generating fallback insights')
-      return this.generateFallbackInsights(tags, context)
+      return this.generateFallbackInsights(tags)
     }
 
     const prompt = this.buildPrompt(tags, context)
-    
+
     try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [
-          {
-            role: 'system',
-            content: `你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。
-            请分析提供的内容，并生成结构化的洞察和建议。
-            
-            规则：
-            1. 只生成有实际价值的洞察
-            2. 每个洞察都应该有明确的类型和优先级
-            3. 提供具体的建议行动
-            4. 考虑上下文信息避免重复
-            5. 使用中文回复`
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' }
-      })
-      
-      const result = JSON.parse(response.choices[0].message.content)
-      const insights = this.parseInsights(result)
-      
-      // Store insights in context
-      insights.forEach(insight => {
-        this.contextStore.addInsight(insight)
-      })
-      
+      let resultJson: unknown = null
+
+      if (this.provider === 'gemini' && this.gemini) {
+        const model = this.gemini.getGenerativeModel({ model: this.modelName })
+        const response = await model.generateContent(prompt)
+        const text = await response.response.text()
+        resultJson = JSON.parse(text)
+      } else if (this.provider === 'openai' && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.modelName,
+          messages: [
+            {
+              role: 'system',
+              content: `你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。请生成结构化 JSON。`
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+          response_format: { type: 'json_object' }
+        })
+        resultJson = JSON.parse(response.choices[0].message.content ?? '')
+      }
+
+      if (!resultJson) return this.generateFallbackInsights(tags)
+
+      const insights = this.parseInsights(resultJson)
+      insights.forEach((i) => this.contextStore.addInsight(i))
       return insights
     } catch (error) {
       console.error('Failed to generate AI insights:', error)
-      return this.generateFallbackInsights(tags, context)
+      return this.generateFallbackInsights(tags)
     }
   }
 
-  private generateFallbackInsights(tags: Tag[], context: ContextWindow): Insight[] {
+  private generateFallbackInsights(tags: Tag[]): Insight[] {
     const insights: Insight[] = []
-    
+
     // Generate basic insights based on tags
-    tags.forEach(tag => {
+    tags.forEach((tag) => {
       if (tag.confidence > 0.7) {
-        const insight: Insight = {
-          id: `fallback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        insights.push({
+          id: `fallback-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           title: `发现${this.getTypeLabel(tag.type)}`,
-          content: `检测到${tag.type}相关内容: ${tag.content}`,
+          content: `检测到相关内容: ${tag.title}`,
           type: this.getInsightType(tag.type),
-          confidence: tag.confidence,
-          tags: [tag.type, tag.content],
-          createdAt: new Date().toISOString(),
-          actions: [{
-            id: `action-${Date.now()}`,
-            title: `查看${this.getTypeLabel(tag.type)}`,
-            description: `进一步了解${tag.content}`,
-            type: 'view',
-            priority: 'medium',
-            dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }]
-        }
-        insights.push(insight)
+          priority: 'medium',
+          suggestedActions: [
+            { type: 'save_note', payload: { source: 'fallback' }, confirmationRequired: false }
+          ],
+          metadata: { tagType: tag.type, tagTitle: tag.title, confidence: tag.confidence }
+        })
       }
     })
-    
+
     return insights
   }
 
   private getTypeLabel(type: string): string {
     const labels: Record<string, string> = {
-      'meeting': '会议',
-      'task': '任务',
-      'schedule': '日程',
-      'problem': '问题',
-      'data': '数据',
-      'document': '文档',
-      'email': '邮件',
-      'code': '代码'
+      meeting: '会议',
+      task: '任务',
+      schedule: '日程',
+      problem: '问题',
+      data: '数据',
+      document: '文档',
+      email: '邮件',
+      code: '代码'
     }
     return labels[type] || type
   }
 
-  private getInsightType(tagType: string): 'task' | 'meeting' | 'reminder' | 'insight' | 'suggestion' {
-    const typeMap: Record<string, 'task' | 'meeting' | 'reminder' | 'insight' | 'suggestion'> = {
-      'meeting': 'meeting',
-      'task': 'task',
-      'schedule': 'reminder',
-      'problem': 'suggestion',
-      'data': 'insight',
-      'document': 'insight',
-      'email': 'task',
-      'code': 'insight'
+  private getInsightType(tagType: string): Insight['type'] {
+    const typeMap: Record<string, Insight['type']> = {
+      meeting: 'note',
+      task: 'task',
+      schedule: 'schedule',
+      problem: 'analysis',
+      data: 'analysis',
+      document: 'note',
+      email: 'note',
+      code: 'analysis'
     }
-    return typeMap[tagType] || 'insight'
+    return typeMap[tagType] || 'note'
   }
 
   private buildPrompt(tags: Tag[], context: ContextWindow): string {
     const recentInsights = this.contextStore.getRecentInsights(5)
-    
+
     return `
 屏幕内容标签：
 ${JSON.stringify(tags, null, 2)}
@@ -173,18 +180,33 @@ ${JSON.stringify(recentInsights, null, 2)}
     `
   }
 
-  private parseInsights(result: any): Insight[] {
-    if (!result.insights || !Array.isArray(result.insights)) {
+  private parseInsights(result: unknown): Insight[] {
+    type AIResponseAction = {
+      type?: string
+      payload?: Record<string, unknown>
+      confirmationRequired?: boolean
+    }
+
+    type AIResponseInsight = {
+      type?: string
+      title?: string
+      content?: string
+      priority?: string
+      suggestedActions?: AIResponseAction[]
+    }
+
+    const r = result as { insights?: AIResponseInsight[] } | null
+    if (!r || !Array.isArray(r.insights)) {
       return []
     }
 
-    return result.insights.map((insight: any, index: number) => ({
+    return r.insights.map((insight, index) => ({
       id: `insight_${Date.now()}_${index}`,
-      type: this.validateInsightType(insight.type),
-      title: insight.title || '未命名洞察',
-      content: insight.content || '',
-      priority: this.validatePriority(insight.priority),
-      suggestedActions: this.parseActions(insight.suggestedActions || []),
+      type: this.validateInsightType(insight.type ?? 'note'),
+      title: insight.title ?? '未命名洞察',
+      content: insight.content ?? '',
+      priority: this.validatePriority(insight.priority ?? 'medium'),
+      suggestedActions: this.parseActions(insight.suggestedActions ?? []),
       metadata: {
         generatedAt: new Date().toISOString(),
         confidence: 0.8,
@@ -195,33 +217,41 @@ ${JSON.stringify(recentInsights, null, 2)}
 
   private validateInsightType(type: string): Insight['type'] {
     const validTypes: Insight['type'][] = ['task', 'schedule', 'note', 'analysis', 'reminder']
-    return validTypes.includes(type as Insight['type']) ? type as Insight['type'] : 'note'
+    return validTypes.includes(type as Insight['type']) ? (type as Insight['type']) : 'note'
   }
 
   private validatePriority(priority: string): Insight['priority'] {
     const validPriorities: Insight['priority'][] = ['low', 'medium', 'high']
-    return validPriorities.includes(priority as Insight['priority']) ? priority as Insight['priority'] : 'medium'
+    return validPriorities.includes(priority as Insight['priority'])
+      ? (priority as Insight['priority'])
+      : 'medium'
   }
 
-  private parseActions(actions: any[]): Action[] {
-    return actions.map((action: any, index: number) => ({
-      type: this.validateActionType(action.type),
-      payload: action.payload || {},
-      confirmationRequired: action.confirmationRequired !== false // Default to true
+  private parseActions(actions: unknown[]): Action[] {
+    const arr = Array.isArray(actions) ? actions : []
+    return arr.map((a) => ({
+      type: this.validateActionType((a as { type?: string }).type ?? 'save_note'),
+      payload: (a as { payload?: Record<string, unknown> }).payload ?? {},
+      confirmationRequired: (a as { confirmationRequired?: boolean }).confirmationRequired !== false
     }))
   }
 
   private validateActionType(type: string): Action['type'] {
-    const validTypes: Action['type'][] = ['create_task', 'add_calendar', 'save_note', 'send_notification']
-    return validTypes.includes(type as Action['type']) ? type as Action['type'] : 'save_note'
+    const validTypes: Action['type'][] = [
+      'create_task',
+      'add_calendar',
+      'save_note',
+      'send_notification'
+    ]
+    return validTypes.includes(type as Action['type']) ? (type as Action['type']) : 'save_note'
   }
 
-  async queryContext(window: number = 10, keys?: string[]): Promise<ContextWindow> {
-    return this.contextStore.getContext(window, keys)
+  async queryContext(): Promise<ContextWindow> {
+    return this.contextStore.getContextWindow()
   }
 
   async pushInsights(insights: Insight[]): Promise<void> {
-    insights.forEach(insight => {
+    insights.forEach((insight) => {
       this.contextStore.addInsight(insight)
     })
   }

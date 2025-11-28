@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X, Lightbulb, Calendar, CheckSquare, AlertCircle } from 'lucide-react'
+import type { Action } from '../../types'
 
 interface Insight {
   id: string
@@ -7,8 +8,8 @@ interface Insight {
   content: string
   type: 'task' | 'schedule' | 'note' | 'analysis' | 'reminder'
   priority: 'low' | 'medium' | 'high'
-  suggestedActions: any[]
-  metadata: Record<string, any>
+  suggestedActions: Action[]
+  metadata: Record<string, unknown>
   createdAt: string
 }
 
@@ -21,7 +22,7 @@ export default function BubblePresentation(): React.JSX.Element {
     // Parse insight from URL parameters
     const params = new URLSearchParams(window.location.search)
     const insightData = params.get('insight')
-    
+
     if (insightData) {
       try {
         const parsedInsight = JSON.parse(decodeURIComponent(insightData))
@@ -46,7 +47,7 @@ export default function BubblePresentation(): React.JSX.Element {
     return () => clearTimeout(timer)
   }, [isExpanded])
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type: string): React.JSX.Element => {
     switch (type) {
       case 'task':
         return <CheckSquare className="h-4 w-4" />
@@ -61,7 +62,7 @@ export default function BubblePresentation(): React.JSX.Element {
     }
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (type: string): string => {
     switch (type) {
       case 'task':
         return 'bg-blue-500'
@@ -76,7 +77,7 @@ export default function BubblePresentation(): React.JSX.Element {
     }
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string): string => {
     switch (priority) {
       case 'high':
         return 'border-red-400'
@@ -96,17 +97,15 @@ export default function BubblePresentation(): React.JSX.Element {
   if (!isExpanded) {
     return (
       <div className="h-screen bg-transparent flex items-end justify-end p-4">
-        <div 
+        <div
           className={`bg-gray-900 border-2 ${getPriorityColor(insight.priority)} rounded-full shadow-lg cursor-pointer hover:scale-105 transition-all duration-200 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
           onClick={() => setIsExpanded(true)}
         >
-          <div className="flex items-center space-x-2 p-3">
+          <div className="flex items-center gap-2 p-3">
             <div className={`p-2 rounded-full ${getTypeColor(insight.type)} text-white`}>
               {getTypeIcon(insight.type)}
             </div>
-            <div className="text-white text-sm font-medium max-w-48 truncate">
-              {insight.title}
-            </div>
+            <div className="text-white text-sm font-medium max-w-48 truncate">{insight.title}</div>
           </div>
         </div>
       </div>
@@ -115,10 +114,12 @@ export default function BubblePresentation(): React.JSX.Element {
 
   return (
     <div className="h-screen bg-transparent flex items-end justify-end p-4">
-      <div className={`bg-gray-900 border-2 ${getPriorityColor(insight.priority)} rounded-lg shadow-2xl max-w-sm w-full transform transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}>
+      <div
+        className={`bg-gray-900 border-2 ${getPriorityColor(insight.priority)} rounded-lg shadow-2xl max-w-sm w-full transform transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-gray-700">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <div className={`p-1 rounded-full ${getTypeColor(insight.type)} text-white`}>
               {getTypeIcon(insight.type)}
             </div>
@@ -141,13 +142,11 @@ export default function BubblePresentation(): React.JSX.Element {
 
         {/* Content */}
         <div className="p-3">
-          <p className="text-gray-300 text-xs leading-relaxed mb-3">
-            {insight.content}
-          </p>
+          <p className="text-gray-300 text-xs leading-relaxed mb-3">{insight.content}</p>
 
           {/* Actions */}
           {insight.suggestedActions && insight.suggestedActions.length > 0 && (
-            <div className="flex space-x-2">
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   console.log('Executing action:', insight.suggestedActions[0].type)

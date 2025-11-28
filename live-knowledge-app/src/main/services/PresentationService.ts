@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, ipcMain } from 'electron'
+import { BrowserWindow, screen, ipcMain, Notification } from 'electron'
 import { join } from 'path'
 import { Insight } from '../../renderer/src/types'
 
@@ -28,9 +28,12 @@ export class PresentationService {
   }
 
   private setupIpcHandlers(): void {
-    ipcMain.handle('presentation:show', async (_, insight: Insight, config?: PresentationConfig) => {
-      return await this.showInsight(insight, config)
-    })
+    ipcMain.handle(
+      'presentation:show',
+      async (_, insight: Insight, config?: PresentationConfig) => {
+        return await this.showInsight(insight, config)
+      }
+    )
 
     ipcMain.handle('presentation:hide', async () => {
       return await this.hidePresentation()
@@ -53,7 +56,7 @@ export class PresentationService {
 
   async showInsight(insight: Insight, config?: PresentationConfig): Promise<void> {
     const mergedConfig = { ...this.config, ...config }
-    
+
     switch (mergedConfig.mode) {
       case 'overlay':
         await this.showOverlay(insight, mergedConfig)
@@ -100,7 +103,9 @@ export class PresentationService {
 
     // Load the presentation component
     if (process.env.NODE_ENV === 'development') {
-      this.presentationWindow.loadURL(`http://localhost:5174#/presentation/overlay?insight=${encodeURIComponent(JSON.stringify(insight))}`)
+      this.presentationWindow.loadURL(
+        `http://localhost:5174#/presentation/overlay?insight=${encodeURIComponent(JSON.stringify(insight))}`
+      )
     } else {
       this.presentationWindow.loadFile(join(__dirname, '../renderer/index.html'), {
         hash: `/presentation/overlay?insight=${encodeURIComponent(JSON.stringify(insight))}`
@@ -138,7 +143,9 @@ export class PresentationService {
 
     // Load the sidebar presentation component
     if (process.env.NODE_ENV === 'development') {
-      this.presentationWindow.loadURL(`http://localhost:5174#/presentation/sidebar?insight=${encodeURIComponent(JSON.stringify(insight))}`)
+      this.presentationWindow.loadURL(
+        `http://localhost:5174#/presentation/sidebar?insight=${encodeURIComponent(JSON.stringify(insight))}`
+      )
     } else {
       this.presentationWindow.loadFile(join(__dirname, '../renderer/index.html'), {
         hash: `/presentation/sidebar?insight=${encodeURIComponent(JSON.stringify(insight))}`
@@ -176,7 +183,9 @@ export class PresentationService {
 
     // Load the bubble presentation component
     if (process.env.NODE_ENV === 'development') {
-      this.presentationWindow.loadURL(`http://localhost:5174#/presentation/bubble?insight=${encodeURIComponent(JSON.stringify(insight))}`)
+      this.presentationWindow.loadURL(
+        `http://localhost:5174#/presentation/bubble?insight=${encodeURIComponent(JSON.stringify(insight))}`
+      )
     } else {
       this.presentationWindow.loadFile(join(__dirname, '../renderer/index.html'), {
         hash: `/presentation/bubble?insight=${encodeURIComponent(JSON.stringify(insight))}`
@@ -189,8 +198,6 @@ export class PresentationService {
   private async showNotification(insight: Insight, config: PresentationConfig): Promise<void> {
     // Use system notification for minimal disruption
     if (process.platform === 'win32' || process.platform === 'darwin') {
-      const { Notification } = require('electron')
-      
       if (Notification.isSupported()) {
         new Notification({
           title: insight.title,

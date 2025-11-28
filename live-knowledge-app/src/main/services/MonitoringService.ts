@@ -2,17 +2,14 @@ import { ScreenWatcher } from './ScreenWatcher'
 import { ContentAnalyzer } from './ContentAnalyzer'
 import { AIEngine } from './AIEngine'
 import { DatabaseService } from './DatabaseService'
-import { ContextMemory } from './ContextMemory'
+import { ContextWindow } from '../../renderer/src/types'
 import { PresentationService } from './PresentationService'
-import { 
-  MonitoringSession, 
-  MonitorConfig, 
-  KnowledgeItem, 
-  Insight, 
-  Tag,
-  Rectangle,
-  Screenshot,
-  TriggerEvent
+import {
+  MonitoringSession,
+  MonitorConfig,
+  KnowledgeItem,
+  Insight,
+  Tag
 } from '../../renderer/src/types'
 import { v4 as uuidv4 } from 'uuid'
 import { app } from 'electron'
@@ -25,7 +22,6 @@ export class MonitoringService extends EventEmitter {
   private contentAnalyzer: ContentAnalyzer
   private aiEngine: AIEngine
   private database: DatabaseService
-  private contextMemory: ContextMemory
   private presentationService: PresentationService
   private currentSession: MonitoringSession | null = null
   private isMonitoring: boolean = false
@@ -40,7 +36,6 @@ export class MonitoringService extends EventEmitter {
     contentAnalyzer: ContentAnalyzer,
     aiEngine: AIEngine,
     database: DatabaseService,
-    contextMemory: ContextMemory,
     presentationService: PresentationService
   ) {
     super()
@@ -49,9 +44,8 @@ export class MonitoringService extends EventEmitter {
     this.contentAnalyzer = contentAnalyzer
     this.aiEngine = aiEngine
     this.database = database
-    this.contextMemory = contextMemory
     this.presentationService = presentationService
-    
+
     this.initialize()
   }
 
@@ -59,13 +53,13 @@ export class MonitoringService extends EventEmitter {
     try {
       // Ensure screenshot directory exists
       await fs.mkdir(this.screenshotDir, { recursive: true })
-      
+
       // Initialize database
       await this.database.initialize()
-      
+
       // Initialize content analyzer
       await this.contentAnalyzer.initialize()
-      
+
       console.log('Monitoring service initialized successfully')
     } catch (error) {
       console.error('Failed to initialize monitoring service:', error)
@@ -85,7 +79,8 @@ export class MonitoringService extends EventEmitter {
         userId: this.userId,
         startedAt: new Date().toISOString(),
         status: 'active',
-        config: config
+        config: config,
+        createdAt: new Date().toISOString()
       }
 
       // Store session in database
@@ -131,17 +126,14 @@ export class MonitoringService extends EventEmitter {
       }
 
       // Clear all debounce timers
-      this.debounceTimers.forEach(timer => clearTimeout(timer))
+      this.debounceTimers.forEach((timer) => clearTimeout(timer))
       this.debounceTimers.clear()
 
       // Update session status
-      this.currentSession.status = 'completed'
+      this.currentSession.status = 'stopped'
       this.currentSession.endedAt = new Date().toISOString()
-      
-      await this.database.updateMonitoringSession(this.currentSession.id, {
-        status: 'completed',
-        endedAt: this.currentSession.endedAt
-      })
+
+      await this.database.updateMonitoringSessionStatus(this.currentSession.id, 'stopped')
 
       this.isMonitoring = false
       const sessionId = this.currentSession.id
@@ -160,7 +152,7 @@ export class MonitoringService extends EventEmitter {
   }
 
   private startMonitoringLoop(config: MonitorConfig): void {
-    const checkInterval = (config as any).captureInterval ?? 3000 // Default 3 seconds
+    const checkInterval = typeof config.captureInterval === 'number' ? config.captureInterval : 3000
 
     this.monitoringInterval = setInterval(async () => {
       if (!this.isMonitoring || !this.currentSession) {
@@ -177,21 +169,25 @@ export class MonitoringService extends EventEmitter {
 
   private async performScreenCheck(config: MonitorConfig): Promise<void> {
     // Resolve trigger config with safe defaults
-    const trigger = config.triggerConfig ?? { debounce: 500, throttle: 2000, similarityThreshold: 0.85 }
+    const trigger = config.triggerConfig ?? {
+      debounce: 500,
+      throttle: 2000,
+      similarityThreshold: 0.85
+    }
     const throttleMs = typeof trigger.throttle === 'number' ? trigger.throttle : 2000
     const debounceMs = typeof trigger.debounce === 'number' ? trigger.debounce : 500
 
     // Check throttle
     const now = Date.now()
     const timeSinceLastTrigger = now - this.lastTriggerTime
-    
+
     if (timeSinceLastTrigger < throttleMs) {
       return
     }
 
     // Detect changes
     const changeResult = await this.screenWatcher.detectChanges()
-    
+
     if (!changeResult.hasChanged) {
       return
     }
@@ -200,7 +196,7 @@ export class MonitoringService extends EventEmitter {
 
     // Create debounce key based on content similarity
     const debounceKey = `screen_check_${Math.round(changeResult.similarity * 100)}`
-    
+
     // Clear existing debounce timer for this key
     if (this.debounceTimers.has(debounceKey)) {
       clearTimeout(this.debounceTimers.get(debounceKey)!)
@@ -209,7 +205,7 @@ export class MonitoringService extends EventEmitter {
     // Set new debounce timer
     const debounceTimer = setTimeout(async () => {
       try {
-        await this.processScreenChange(changeResult.screenshot, config)
+        await this.processScreenChange(changeResult.screenshot)
         this.debounceTimers.delete(debounceKey)
       } catch (error) {
         console.error('Error processing screen change:', error)
@@ -220,20 +216,20 @@ export class MonitoringService extends EventEmitter {
     this.debounceTimers.set(debounceKey, debounceTimer)
   }
 
-  private async processScreenChange(screenshot: Buffer, config: MonitorConfig): Promise<void> {
+  private async processScreenChange(screenshot: Buffer): Promise<void> {
     if (!this.currentSession) {
       return
     }
 
     try {
       console.log('Processing screen change...')
-      
+
       // Save screenshot
       const screenshotPath = await this.saveScreenshot(screenshot)
-      
+
       // Extract text from image
       const extractedText = await this.contentAnalyzer.extractTextFromImage(screenshot)
-      
+
       if (!extractedText.trim()) {
         console.log('No text found in screenshot')
         return
@@ -243,28 +239,31 @@ export class MonitoringService extends EventEmitter {
 
       // Extract structured content
       const tags = await this.contentAnalyzer.extractStructuredContent(extractedText)
-      
+
       if (tags.length === 0) {
         console.log('No relevant content detected')
         return
       }
 
-      console.log(`Detected ${tags.length} content tags:`, tags.map(tag => tag.type))
+      console.log(
+        `Detected ${tags.length} content tags:`,
+        tags.map((tag) => tag.type)
+      )
 
       // Create knowledge item
       const knowledgeItem = await this.createKnowledgeItem(tags, extractedText, screenshotPath)
-      
+
       // Generate insights using AI
       const context = await this.buildContext()
       const insights = await this.aiEngine.generateInsights(tags, context)
-      
+
       // Store insights and present them
       for (const insight of insights) {
         await this.createInsight(knowledgeItem.id, insight)
-        
-        // Emit insight event for real-time updates
-        this.emit('insightGenerated', insight)
-        
+
+        // Emit insight event for real-time updates (attach screenshot path for renderer)
+        this.emit('insightGenerated', { ...insight, screenshotPath: screenshotPath })
+
         // Present the insight using presentation service
         if (this.presentationService) {
           try {
@@ -296,9 +295,9 @@ export class MonitoringService extends EventEmitter {
   private async saveScreenshot(screenshot: Buffer): Promise<string> {
     const filename = `screenshot_${Date.now()}.png`
     const filepath = path.join(this.screenshotDir, filename)
-    
+
     await fs.writeFile(filepath, screenshot)
-    
+
     // Store screenshot record in database
     await this.database.createScreenshot({
       sessionId: this.currentSession!.id,
@@ -308,12 +307,16 @@ export class MonitoringService extends EventEmitter {
         format: 'png'
       }
     })
-    
+
     return filepath
   }
 
-  private async createKnowledgeItem(tags: Tag[], content: string, screenshotPath: string): Promise<KnowledgeItem> {
-    const primaryTag = tags.reduce((prev, current) => 
+  private async createKnowledgeItem(
+    tags: Tag[],
+    content: string,
+    screenshotPath: string
+  ): Promise<KnowledgeItem> {
+    const primaryTag = tags.reduce((prev, current) =>
       prev.confidence > current.confidence ? prev : current
     )
 
@@ -335,7 +338,9 @@ export class MonitoringService extends EventEmitter {
       await this.database.createTag({
         itemId: knowledgeItem.id,
         type: tag.type,
-        value: tag.title,
+        title: tag.title,
+        content: '',
+        metadata: {},
         confidence: tag.confidence
       })
     }
@@ -344,35 +349,41 @@ export class MonitoringService extends EventEmitter {
   }
 
   private async createInsight(itemId: string, insight: Insight): Promise<void> {
-    await this.database.createInsight({
-      itemId,
+    await this.database.createInsight(itemId, {
       type: insight.type,
       title: insight.title,
       content: insight.content,
       priority: insight.priority,
-      suggestedActions: insight.suggestedActions
+      suggestedActions: insight.suggestedActions,
+      metadata: insight.metadata
     })
   }
 
-  private async createTriggerEvent(eventType: string, content: any): Promise<void> {
+  private async createTriggerEvent(
+    eventType: string,
+    content: Record<string, unknown>
+  ): Promise<void> {
+    const confidence =
+      Array.isArray((content as { tags?: Array<{ confidence?: number }> }).tags) &&
+      typeof (content as { tags?: Array<{ confidence?: number }> }).tags![0]?.confidence ===
+        'number'
+        ? ((content as { tags?: Array<{ confidence?: number }> }).tags![0]!.confidence as number)
+        : 0.5
+
     await this.database.createTriggerEvent({
       sessionId: this.currentSession!.id,
       eventType,
       content,
-      confidence: content.tags?.[0]?.confidence || 0.5
+      confidence
     })
   }
 
-  private async buildContext(): Promise<any> {
+  private async buildContext(): Promise<ContextWindow> {
     // Get recent knowledge items for context
     const recentItems = await this.database.getKnowledgeItemsByUser(this.userId, 5)
-    
+
     return {
-      recentContexts: recentItems.map(item => ({
-        type: item.type,
-        title: item.title,
-        timestamp: item.createdAt
-      })),
+      recentContexts: recentItems.map((item) => `${item.type}:${item.title}:${item.createdAt}`),
       knowledgeItems: recentItems,
       session: {
         id: this.currentSession!.id,
@@ -398,7 +409,7 @@ export class MonitoringService extends EventEmitter {
     }
 
     const stats = await this.getUserStatistics()
-    
+
     return {
       status: this.isMonitoring ? 'running' : 'idle',
       startTime: this.currentSession?.startedAt,
@@ -414,7 +425,7 @@ export class MonitoringService extends EventEmitter {
     }
 
     this.isMonitoring = false
-    
+
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval)
       this.monitoringInterval = null
@@ -422,7 +433,7 @@ export class MonitoringService extends EventEmitter {
 
     // Update session status
     this.currentSession.status = 'paused'
-    this.currentSession.pausedAt = new Date().toISOString()
+    // paused timestamp can be tracked elsewhere if needed
 
     this.emit('statusChanged', {
       status: 'paused',
@@ -443,7 +454,7 @@ export class MonitoringService extends EventEmitter {
 
     this.isMonitoring = true
     this.currentSession.status = 'active'
-    this.currentSession.resumedAt = new Date().toISOString()
+    // resumed timestamp can be tracked elsewhere if needed
 
     // Restart monitoring loop
     const config = this.currentSession.config
@@ -462,12 +473,12 @@ export class MonitoringService extends EventEmitter {
   async getRecentInsights(limit: number = 10): Promise<Insight[]> {
     const items = await this.database.getKnowledgeItemsByUser(this.userId, limit)
     const insights: Insight[] = []
-    
+
     for (const item of items) {
       const itemInsights = await this.database.getInsightsByItem(item.id)
       insights.push(...itemInsights)
     }
-    
+
     return insights.slice(0, limit)
   }
 
@@ -484,10 +495,10 @@ export class MonitoringService extends EventEmitter {
     if (this.isMonitoring) {
       await this.stopMonitoring()
     }
-    
+
     await this.contentAnalyzer.terminate()
     await this.database.close()
-    
+
     console.log('Monitoring service cleaned up')
   }
 }

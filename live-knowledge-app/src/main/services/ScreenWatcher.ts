@@ -24,7 +24,7 @@ export class ScreenWatcher {
       }
 
       const screenshot = sources[0].thumbnail.toPNG()
-      
+
       // If a specific region is defined, crop the screenshot
       if (this.captureRegion) {
         return this.cropScreenshot(screenshot, this.captureRegion)
@@ -67,7 +67,7 @@ export class ScreenWatcher {
     try {
       const image = nativeImage.createFromBuffer(screenshot)
       const { width, height } = image.getSize()
-      
+
       // Ensure the region is within bounds
       const validRegion = {
         x: Math.max(0, Math.min(region.x, width - 1)),
@@ -89,7 +89,7 @@ export class ScreenWatcher {
     try {
       const hash1 = await this.calculatePerceptualHash(img1)
       const hash2 = await this.calculatePerceptualHash(img2)
-      
+
       return this.hammingDistance(hash1, hash2) / 64 // 64-bit hash
     } catch (error) {
       console.error('Similarity calculation failed:', error)
@@ -102,31 +102,30 @@ export class ScreenWatcher {
     // This is a basic version - in production, consider using a more sophisticated algorithm
     try {
       const image = nativeImage.createFromBuffer(imageBuffer)
-      const { width, height } = image.getSize()
-      
+
       // Resize to 8x8 for hash calculation
       const resized = image.resize({ width: 8, height: 8 })
       const bitmap = resized.toBitmap()
-      
+
       // Calculate average pixel value
       let totalValue = 0
       let pixelCount = 0
-      
+
       for (let i = 0; i < bitmap.length; i += 4) {
         const gray = (bitmap[i] + bitmap[i + 1] + bitmap[i + 2]) / 3
         totalValue += gray
         pixelCount++
       }
-      
+
       const average = totalValue / pixelCount
-      
+
       // Generate hash based on pixels above/below average
       let hash = ''
       for (let i = 0; i < bitmap.length; i += 4) {
         const gray = (bitmap[i] + bitmap[i + 1] + bitmap[i + 2]) / 3
         hash += gray > average ? '1' : '0'
       }
-      
+
       return hash
     } catch (error) {
       console.error('Perceptual hash calculation failed:', error)
@@ -138,14 +137,14 @@ export class ScreenWatcher {
     if (hash1.length !== hash2.length) {
       return Math.max(hash1.length, hash2.length)
     }
-    
+
     let distance = 0
     for (let i = 0; i < hash1.length; i++) {
       if (hash1[i] !== hash2[i]) {
         distance++
       }
     }
-    
+
     return distance
   }
 

@@ -6,10 +6,17 @@ export interface Rectangle {
 }
 
 export interface Tag {
-  type: 'meeting_schedule' | 'task_todo' | 'topic_discussion' | 'data_table' | 'problem_solving' | 'insight_context'
+  id: string
+  type:
+    | 'meeting_schedule'
+    | 'task_todo'
+    | 'topic_discussion'
+    | 'data_table'
+    | 'problem_solving'
+    | 'insight_context'
   title: string
   content: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   timestamp: string
   confidence: number
 }
@@ -21,12 +28,12 @@ export interface Insight {
   content: string
   priority: 'low' | 'medium' | 'high'
   suggestedActions: Action[]
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 }
 
 export interface Action {
   type: 'create_task' | 'add_calendar' | 'save_note' | 'send_notification'
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   confirmationRequired: boolean
 }
 
@@ -42,7 +49,7 @@ export interface KnowledgeItem {
   type: string
   title: string
   content: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   confidence: number
   createdAt: string
 }
@@ -65,13 +72,14 @@ export interface MonitorConfig {
     throttle: number
     similarityThreshold: number
   }
+  captureInterval?: number
 }
 
 export interface Screenshot {
   id: string
   sessionId: string
   imagePath: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   capturedAt: string
 }
 
@@ -79,7 +87,7 @@ export interface TriggerEvent {
   id: string
   sessionId: string
   eventType: string
-  content: Record<string, any>
+  content: Record<string, unknown>
   confidence: number
   triggeredAt: string
 }
@@ -88,7 +96,7 @@ export interface UserAction {
   id: string
   itemId: string
   actionType: string
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   status: 'pending' | 'completed' | 'failed'
   executedAt?: string
   createdAt: string
@@ -98,7 +106,7 @@ export interface User {
   id: string
   email: string
   name: string
-  preferences: Record<string, any>
+  preferences: Record<string, unknown>
   plan: 'free' | 'premium'
   createdAt: string
   updatedAt: string
@@ -108,8 +116,8 @@ export interface IntegrationConfig {
   id: string
   userId: string
   provider: string
-  credentials: Record<string, any>
-  settings: Record<string, any>
+  credentials: Record<string, unknown>
+  settings: Record<string, unknown>
   enabled: boolean
   createdAt: string
   updatedAt: string

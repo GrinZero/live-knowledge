@@ -8,7 +8,6 @@ import { DatabaseService } from './services/DatabaseService'
 import { AIEngine } from './services/AIEngine'
 import { ScreenWatcher } from './services/ScreenWatcher'
 import { ContentAnalyzer } from './services/ContentAnalyzer'
-import { ContextMemory } from './services/ContextMemory'
 import { PresentationService } from './services/PresentationService'
 import { APIServer } from './services/APIServer'
 
@@ -17,7 +16,7 @@ let databaseService: DatabaseService | null = null
 let presentationService: PresentationService | null = null
 let apiServer: APIServer | null = null
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -62,9 +61,12 @@ async function initializeServices(): Promise<void> {
     console.log('Database service initialized')
 
     // Initialize AI engine (with optional API key)
-    const openaiApiKey = process.env.OPENAI_API_KEY
-    const aiEngine = new AIEngine(openaiApiKey)
-    console.log(`AI engine initialized ${openaiApiKey ? 'with API key' : 'in fallback mode'}`)
+    const provider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai'
+    const apiKey = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY
+    const aiEngine = new AIEngine(apiKey, provider as 'gemini' | 'openai')
+    console.log(
+      `AI engine initialized provider=${provider} ${apiKey ? 'with API key' : 'in fallback mode'}`
+    )
 
     // Initialize screen watcher
     const screenWatcher = new ScreenWatcher()
@@ -73,10 +75,6 @@ async function initializeServices(): Promise<void> {
     // Initialize content analyzer
     const contentAnalyzer = new ContentAnalyzer()
     console.log('Content analyzer initialized')
-
-    // Initialize context memory
-    const contextMemory = new ContextMemory()
-    console.log('Context memory initialized')
 
     // Initialize presentation service
     presentationService = new PresentationService()
@@ -88,7 +86,6 @@ async function initializeServices(): Promise<void> {
       contentAnalyzer,
       aiEngine,
       databaseService,
-      contextMemory,
       presentationService
     )
     console.log('Monitoring service initialized')
@@ -159,7 +156,7 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('db:getUserStats', async (_, userId: string) => {
     if (!databaseService) throw new Error('Database service not initialized')
-    return await databaseService.getUserStats(userId)
+    return await databaseService.getUserStatistics(userId)
   })
 
   // IPC test
@@ -229,7 +226,7 @@ app.on('window-all-closed', () => {
   if (apiServer) {
     apiServer.stop().catch(console.error)
   }
-  
+
   if (process.platform !== 'darwin') {
     app.quit()
   }

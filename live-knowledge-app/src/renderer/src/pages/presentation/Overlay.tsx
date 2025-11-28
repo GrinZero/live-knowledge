@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X, Lightbulb, Calendar, CheckSquare, AlertCircle } from 'lucide-react'
+import type { Action } from '../../types'
 
 interface Insight {
   id: string
@@ -7,8 +8,8 @@ interface Insight {
   content: string
   type: 'task' | 'schedule' | 'note' | 'analysis' | 'reminder'
   priority: 'low' | 'medium' | 'high'
-  suggestedActions: any[]
-  metadata: Record<string, any>
+  suggestedActions: Action[]
+  metadata: Record<string, unknown>
 }
 
 export default function OverlayPresentation(): React.JSX.Element {
@@ -19,7 +20,7 @@ export default function OverlayPresentation(): React.JSX.Element {
     // Parse insight from URL parameters
     const params = new URLSearchParams(window.location.search)
     const insightData = params.get('insight')
-    
+
     if (insightData) {
       try {
         const parsedInsight = JSON.parse(decodeURIComponent(insightData))
@@ -42,7 +43,7 @@ export default function OverlayPresentation(): React.JSX.Element {
     return () => clearTimeout(timer)
   }, [])
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type: string): React.JSX.Element => {
     switch (type) {
       case 'task':
         return <CheckSquare className="h-5 w-5" />
@@ -57,7 +58,7 @@ export default function OverlayPresentation(): React.JSX.Element {
     }
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (type: string): string => {
     switch (type) {
       case 'task':
         return 'bg-blue-500'
@@ -72,7 +73,7 @@ export default function OverlayPresentation(): React.JSX.Element {
     }
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string): string => {
     switch (priority) {
       case 'high':
         return 'border-red-400'
@@ -91,10 +92,12 @@ export default function OverlayPresentation(): React.JSX.Element {
 
   return (
     <div className="h-screen bg-transparent flex items-center justify-center p-4">
-      <div className={`bg-gray-900 border-2 ${getPriorityColor(insight.priority)} rounded-lg shadow-2xl max-w-md w-full transform transition-all duration-300 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+      <div
+        className={`bg-gray-900 border-2 ${getPriorityColor(insight.priority)} rounded-lg shadow-2xl max-w-md w-full transform transition-all duration-300 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3">
             <div className={`p-2 rounded-full ${getTypeColor(insight.type)} text-white`}>
               {getTypeIcon(insight.type)}
             </div>
@@ -117,17 +120,15 @@ export default function OverlayPresentation(): React.JSX.Element {
 
         {/* Content */}
         <div className="p-4">
-          <p className="text-gray-300 text-sm leading-relaxed mb-4">
-            {insight.content}
-          </p>
+          <p className="text-gray-300 text-sm leading-relaxed mb-4">{insight.content}</p>
 
           {/* Suggested Actions */}
           {insight.suggestedActions && insight.suggestedActions.length > 0 && (
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <h4 className="text-sm font-medium text-gray-400">Suggested Actions:</h4>
-              <div className="space-y-1">
+              <div className="flex flex-col gap-1">
                 {insight.suggestedActions.map((action, index) => (
-                  <div key={index} className="flex items-center space-x-2 text-xs text-gray-300">
+                  <div key={index} className="flex items-center gap-2 text-xs text-gray-300">
                     <div className="w-1 h-1 bg-blue-400 rounded-full" />
                     <span>{action.type}</span>
                   </div>
@@ -151,7 +152,7 @@ export default function OverlayPresentation(): React.JSX.Element {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end space-x-2 p-4 border-t border-gray-700">
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-700">
           <button
             onClick={() => {
               // Implement dismiss action

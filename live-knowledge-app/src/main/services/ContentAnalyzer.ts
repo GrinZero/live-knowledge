@@ -1,8 +1,9 @@
-import { createWorker } from 'tesseract.js'
+import { createWorker, Worker } from 'tesseract.js'
+import { v4 as uuidv4 } from 'uuid'
 import { Tag } from '../../renderer/src/types'
 
 export class ContentAnalyzer {
-  private tesseractWorker: any
+  private tesseractWorker: Worker | null = null
   private isWorkerInitialized: boolean = false
 
   async initialize(): Promise<void> {
@@ -10,6 +11,12 @@ export class ContentAnalyzer {
 
     try {
       this.tesseractWorker = await createWorker('chi_sim+eng')
+      if (this.tesseractWorker?.setParameters) {
+        await this.tesseractWorker.setParameters({
+          preserve_interword_spaces: '1',
+          user_defined_dpi: '300'
+        })
+      }
       this.isWorkerInitialized = true
     } catch (error) {
       console.error('Failed to initialize Tesseract worker:', error)
@@ -23,8 +30,15 @@ export class ContentAnalyzer {
     }
 
     try {
-      const result = await this.tesseractWorker.recognize(imageBuffer)
-      return result.data.text.trim()
+      const result = await this.tesseractWorker!.recognize(imageBuffer)
+      const raw = result.data.text || ''
+      const normalized = raw
+        .replace(/[\t\r]+/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/[^\S\n]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+      return normalized
     } catch (error) {
       console.error('OCR extraction failed:', error)
       throw error
@@ -33,7 +47,7 @@ export class ContentAnalyzer {
 
   async extractStructuredContent(text: string): Promise<Tag[]> {
     const tags: Tag[] = []
-    
+
     // Define patterns for different content types
     const patterns = {
       meeting: {
@@ -68,8 +82,10 @@ export class ContentAnalyzer {
       const matches = text.match(config.regex)
       if (matches && matches.length > 0) {
         const confidence = this.calculateConfidence(text, config.regex)
-        if (confidence > 0.3) { // Minimum confidence threshold
+        if (confidence > 0.3) {
+          // Minimum confidence threshold
           tags.push({
+            id: uuidv4(),
             type: type as Tag['type'],
             title: config.title(text, matches),
             content: text,
@@ -87,12 +103,12 @@ export class ContentAnalyzer {
   private calculateConfidence(text: string, pattern: RegExp): number {
     const matches = text.match(pattern)
     if (!matches) return 0
-    
+
     // Calculate confidence based on match frequency and text length
     const matchCount = matches.length
     const textLength = text.length
     const keywordDensity = matchCount / (textLength / 100) // matches per 100 characters
-    
+
     // Confidence increases with keyword density, capped at 0.95
     return Math.min(0.95, keywordDensity * 2)
   }
@@ -101,7 +117,7 @@ export class ContentAnalyzer {
     // Look for meeting titles after meeting keywords
     const lines = text.split('\n')
     for (const line of lines) {
-      if (matches.some(match => line.toLowerCase().includes(match.toLowerCase()))) {
+      if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
         // Extract what comes after the meeting keyword
         const cleanedLine = line.replace(/^(会议|meeting|讨论|discuss)\s*[:：]\s*/i, '')
         if (cleanedLine.length > 5 && cleanedLine.length < 100) {
@@ -112,8 +128,8 @@ export class ContentAnalyzer {
     return '会议讨论'
   }
 
-  private extractMeetingMetadata(text: string, matches: RegExpMatchArray): Record<string, any> {
-    const metadata: Record<string, any> = {
+  private extractMeetingMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       participants: this.extractParticipants(text),
       time: this.extractTime(text),
@@ -125,7 +141,7 @@ export class ContentAnalyzer {
   private extractTaskTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
-      if (matches.some(match => line.toLowerCase().includes(match.toLowerCase()))) {
+      if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
         // Look for task descriptions
         const taskLine = line.replace(/^(任务|task|待办|todo)\s*[:：]\s*/i, '')
         if (taskLine.length > 3 && taskLine.length < 150) {
@@ -136,8 +152,8 @@ export class ContentAnalyzer {
     return '待办任务'
   }
 
-  private extractTaskMetadata(text: string, matches: RegExpMatchArray): Record<string, any> {
-    const metadata: Record<string, any> = {
+  private extractTaskMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       priority: this.detectTaskPriority(text),
       deadline: this.extractDeadline(text),
@@ -149,7 +165,7 @@ export class ContentAnalyzer {
   private extractScheduleTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
-      if (matches.some(match => line.toLowerCase().includes(match.toLowerCase()))) {
+      if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
         const scheduleLine = line.replace(/^(日程|schedule)\s*[:：]\s*/i, '')
         if (scheduleLine.length > 5 && scheduleLine.length < 100) {
           return scheduleLine.trim()
@@ -159,8 +175,11 @@ export class ContentAnalyzer {
     return '日程安排'
   }
 
-  private extractScheduleMetadata(text: string, matches: RegExpMatchArray): Record<string, any> {
-    const metadata: Record<string, any> = {
+  private extractScheduleMetadata(
+    text: string,
+    matches: RegExpMatchArray
+  ): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       time: this.extractTime(text),
       duration: this.extractDuration(text),
@@ -172,7 +191,7 @@ export class ContentAnalyzer {
   private extractProblemTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
-      if (matches.some(match => line.toLowerCase().includes(match.toLowerCase()))) {
+      if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
         const problemLine = line.replace(/^(问题|problem|bug|错误|error)\s*[:：]\s*/i, '')
         if (problemLine.length > 5 && problemLine.length < 150) {
           return problemLine.trim()
@@ -182,8 +201,8 @@ export class ContentAnalyzer {
     return '问题反馈'
   }
 
-  private extractProblemMetadata(text: string, matches: RegExpMatchArray): Record<string, any> {
-    const metadata: Record<string, any> = {
+  private extractProblemMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       severity: this.detectProblemSeverity(text),
       category: this.categorizeProblem(text),
@@ -195,7 +214,7 @@ export class ContentAnalyzer {
   private extractDataTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
-      if (matches.some(match => line.toLowerCase().includes(match.toLowerCase()))) {
+      if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
         const dataLine = line.replace(/^(数据|data|表格|table|图表|chart)\s*[:：]\s*/i, '')
         if (dataLine.length > 3 && dataLine.length < 100) {
           return dataLine.trim()
@@ -205,8 +224,8 @@ export class ContentAnalyzer {
     return '数据分析'
   }
 
-  private extractDataMetadata(text: string, matches: RegExpMatchArray): Record<string, any> {
-    const metadata: Record<string, any> = {
+  private extractDataMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       dataType: this.detectDataType(text),
       metrics: this.extractMetrics(text),
@@ -222,12 +241,12 @@ export class ContentAnalyzer {
       /参与者[：:]\s*([^\n]+)/i,
       /参会人员[：:]\s*([^\n]+)/i
     ]
-    
+
     const participants: string[] = []
-    participantPatterns.forEach(pattern => {
+    participantPatterns.forEach((pattern) => {
       const matches = text.match(pattern)
       if (matches) {
-        matches.forEach(match => {
+        matches.forEach((match) => {
           const cleaned = match.replace(/[:：]/g, '').trim()
           if (cleaned.length > 1 && cleaned.length < 50) {
             participants.push(cleaned)
@@ -235,7 +254,7 @@ export class ContentAnalyzer {
         })
       }
     })
-    
+
     return [...new Set(participants)] // Remove duplicates
   }
 
@@ -246,44 +265,44 @@ export class ContentAnalyzer {
       /(\d{4})-(\d{1,2})-(\d{1,2})/g, // 2024-11-21
       /(今天|明天|后天|下周|下月)/g // Relative time
     ]
-    
+
     for (const pattern of timePatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[0]
       }
     }
-    
+
     return null
   }
 
   private detectMeetingPlatform(text: string): string | null {
     const platforms = ['zoom', 'teams', 'google meet', '腾讯会议', '钉钉']
     const lowerText = text.toLowerCase()
-    
+
     for (const platform of platforms) {
       if (lowerText.includes(platform)) {
         return platform
       }
     }
-    
+
     return null
   }
 
   private detectTaskPriority(text: string): 'low' | 'medium' | 'high' {
     const highKeywords = ['紧急', 'urgent', '重要', 'important', '立即', 'immediately', 'asap']
     const lowKeywords = ['低优先级', 'low priority', '不急', 'not urgent']
-    
+
     const lowerText = text.toLowerCase()
-    
-    if (highKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+
+    if (highKeywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
       return 'high'
     }
-    
-    if (lowKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+
+    if (lowKeywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
       return 'low'
     }
-    
+
     return 'medium'
   }
 
@@ -297,14 +316,14 @@ export class ContentAnalyzer {
       /负责人[：:]\s*([^\n]+)/i,
       /@(\w+)/g // @username format
     ]
-    
+
     for (const pattern of assigneePatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[1] || match[0]
       }
     }
-    
+
     return null
   }
 
@@ -315,14 +334,14 @@ export class ContentAnalyzer {
       /(\d+)h/g, // Xh
       /(\d+)min/g // Xmin
     ]
-    
+
     for (const pattern of durationPatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[0]
       }
     }
-    
+
     return null
   }
 
@@ -332,14 +351,14 @@ export class ContentAnalyzer {
       /位置[：:]\s*([^\n]+)/i,
       /在([^\n，。]+)举行/i
     ]
-    
+
     for (const pattern of locationPatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[1] || match[0]
       }
     }
-    
+
     return null
   }
 
@@ -347,40 +366,40 @@ export class ContentAnalyzer {
     const criticalKeywords = ['严重', 'critical', '崩溃', 'crash', '数据丢失']
     const highKeywords = ['重要', 'high', '主要', 'major', '无法使用']
     const lowKeywords = ['轻微', 'low', '小问题', 'minor', '建议']
-    
+
     const lowerText = text.toLowerCase()
-    
-    if (criticalKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+
+    if (criticalKeywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
       return 'critical'
     }
-    
-    if (highKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+
+    if (highKeywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
       return 'high'
     }
-    
-    if (lowKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+
+    if (lowKeywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
       return 'low'
     }
-    
+
     return 'medium'
   }
 
   private categorizeProblem(text: string): string {
     const categories = {
-      'ui': ['界面', 'ui', '显示', 'display', '按钮', 'button'],
-      'performance': ['性能', 'performance', '慢', 'slow', '卡顿', 'lag'],
-      'functionality': ['功能', 'functionality', '无法', 'cannot', '失效', 'broken'],
-      'data': ['数据', 'data', '丢失', 'lost', '错误', 'error']
+      ui: ['界面', 'ui', '显示', 'display', '按钮', 'button'],
+      performance: ['性能', 'performance', '慢', 'slow', '卡顿', 'lag'],
+      functionality: ['功能', 'functionality', '无法', 'cannot', '失效', 'broken'],
+      data: ['数据', 'data', '丢失', 'lost', '错误', 'error']
     }
-    
+
     const lowerText = text.toLowerCase()
-    
+
     for (const [category, keywords] of Object.entries(categories)) {
-      if (keywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+      if (keywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
         return category
       }
     }
-    
+
     return 'general'
   }
 
@@ -389,33 +408,33 @@ export class ContentAnalyzer {
       /(登录|login|注册|register|首页|home|设置|settings)/gi,
       /(数据库|database|api|接口)/gi
     ]
-    
+
     for (const pattern of componentPatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[0]
       }
     }
-    
+
     return null
   }
 
   private detectDataType(text: string): string {
     const dataTypes = {
-      'table': ['表格', 'table', 'excel', 'csv'],
-      'chart': ['图表', 'chart', '图形', 'graph'],
-      'report': ['报告', 'report', '总结', 'summary'],
-      'metrics': ['指标', 'metrics', 'kpi', 'performance']
+      table: ['表格', 'table', 'excel', 'csv'],
+      chart: ['图表', 'chart', '图形', 'graph'],
+      report: ['报告', 'report', '总结', 'summary'],
+      metrics: ['指标', 'metrics', 'kpi', 'performance']
     }
-    
+
     const lowerText = text.toLowerCase()
-    
+
     for (const [type, keywords] of Object.entries(dataTypes)) {
-      if (keywords.some(keyword => lowerText.includes(keyword.toLowerCase()))) {
+      if (keywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))) {
         return type
       }
     }
-    
+
     return 'general'
   }
 
@@ -427,15 +446,15 @@ export class ContentAnalyzer {
       /(\d+(?:\.\d+)?)[kK]/g, // K notation
       /(\d+(?:\.\d+)?)[mM]/g // M notation
     ]
-    
+
     const metrics: string[] = []
-    metricPatterns.forEach(pattern => {
+    metricPatterns.forEach((pattern) => {
       const matches = text.match(pattern)
       if (matches) {
         metrics.push(...matches)
       }
     })
-    
+
     return [...new Set(metrics)] // Remove duplicates
   }
 
@@ -445,14 +464,14 @@ export class ContentAnalyzer {
       /(本月|上月|本季度|上季度)/g, // Chinese relative time
       /(最近|last)\s*(\d+)\s*(天|周|月|年)/g // Relative time ranges
     ]
-    
+
     for (const pattern of timeRangePatterns) {
       const match = text.match(pattern)
       if (match && match.length > 0) {
         return match[0]
       }
     }
-    
+
     return null
   }
 
