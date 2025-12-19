@@ -1,7 +1,13 @@
+import { v4 as uuidv4 } from 'uuid'
 import OpenAI from 'openai'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import nodeFetch from 'node-fetch'
 import { Tag, Insight, Action, ContextWindow } from '../../renderer/src/types'
 import { ContextMemory } from './ContextMemory'
+
+import { HttpsProxyAgent } from 'https-proxy-agent'
+
+const originalFetch = global.fetch
 
 export class AIEngine {
   private openai: OpenAI | null = null
@@ -10,39 +16,310 @@ export class AIEngine {
   private modelName: string = ''
   private contextStore: ContextMemory
   private isEnabled: boolean = false
+  private httpAgent: HttpsProxyAgent<string> | undefined
+  private language: 'zh' | 'en' = 'zh'
 
   constructor(apiKey?: string, provider?: 'openai' | 'gemini') {
-    // Prefer explicit provider; otherwise infer from environment
-    const geminiKey = provider === 'gemini' ? apiKey : process.env.GEMINI_API_KEY
-    const openaiKey = provider === 'openai' ? apiKey : process.env.OPENAI_API_KEY
+    // Configure proxy agent
+    const proxyUrl = process.env.https_proxy || process.env.http_proxy
 
-    if (geminiKey) {
+    console.log('proxyUrl', proxyUrl)
+    if (proxyUrl) {
+      this.httpAgent = new HttpsProxyAgent(proxyUrl)
+    }
+
+    // Initial configuration can be passed or left empty
+    if (apiKey && provider) {
+      this.updateConfig({ apiKey, provider })
+    }
+    this.contextStore = new ContextMemory()
+  }
+
+  async analyzeImage(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
+    if (!this.isEnabled) {
+      return { text: '', tags: [] }
+    }
+
+    const base64Image = imageBuffer.toString('base64')
+    const langInstruction =
+      this.language === 'zh'
+        ? 'Ensure all extracted titles and content descriptions are in Chinese.'
+        : 'Ensure all extracted titles and content descriptions are in English.'
+
+    const prompt = `
+      Analyze the provided screen image.
+      1. Transcribe all visible text accurately.
+      2. Identify and extract structured knowledge items (tags) from the visual content.
+      ${langInstruction}
+
+      Return a JSON object with this structure:
+      {
+        "text": "Full text transcription of the image",
+        "tags": [
+          {
+            "type": "meeting_schedule|task_todo|topic_discussion|data_table|problem_solving|insight_context",
+            "title": "Short descriptive title",
+            "content": "Relevant text or description",
+            "confidence": 0.0-1.0,
+            "metadata": { ... }
+          }
+        ]
+      }
+      Return ONLY valid JSON.
+    `
+
+    try {
+      let resultJson: { text?: string; tags?: unknown[] } | null = null
+
+      if (this.provider === 'gemini' && this.gemini) {
+        // Use a model that supports vision (e.g., gemini-1.5-flash or gemini-pro-vision)
+        // Assuming the configured model supports it or falling back/overriding if needed.
+        // For safety, if modelName is 'gemini-pro' (text only), we might want to use 'gemini-1.5-flash' or similar.
+        // But let's trust the user config or the default for now, or maybe check.
+        const model = this.gemini.getGenerativeModel({ model: this.modelName })
+
+        const imagePart = {
+          inlineData: {
+            data: base64Image,
+            mimeType: 'image/png'
+          }
+        }
+
+        const response = await model.generateContent([prompt, imagePart])
+        const text = await response.response.text()
+        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '')
+        resultJson = JSON.parse(cleanedText)
+      } else if (this.provider === 'openai' && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.modelName, // Must be gpt-4o, gpt-4-turbo, etc.
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a visual analysis engine. Output valid JSON only.'
+            },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/png;base64,${base64Image}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 2000,
+          response_format: { type: 'json_object' }
+        })
+        resultJson = JSON.parse(response.choices[0].message.content ?? '{}')
+      }
+
+      const text = resultJson?.text || ''
+      const tags = (resultJson?.tags as Record<string, unknown>[])?.map((t) => ({
+        id: uuidv4(),
+        type: (t.type as Tag['type']) || 'insight_context',
+        title: (t.title as string) || 'Untitled',
+        content: (t.content as string) || '',
+        metadata: (t.metadata as Record<string, unknown>) || {},
+        timestamp: new Date().toISOString(),
+        confidence: (t.confidence as number) || 0.8
+      })) || []
+
+      return { text, tags }
+    } catch (error) {
+      console.error('AI Image Analysis failed:', error)
+      return { text: '', tags: [] }
+    }
+  }
+
+  updateConfig(config: { apiKey?: string; provider?: 'openai' | 'gemini'; model?: string; proxyUrl?: string; language?: 'zh' | 'en' }): void {
+    const { apiKey, provider, model, proxyUrl, language } = config
+
+    if (language) {
+      this.language = language
+    }
+
+    // Update proxy agent if provided
+    if (proxyUrl !== undefined) {
+      if (proxyUrl) {
+        this.httpAgent = new HttpsProxyAgent(proxyUrl)
+        // Patch global fetch for Gemini SDK which relies on it
+        const agent = this.httpAgent
+        // @ts-ignore: Patching global fetch to support proxy agent
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        global.fetch = async (url: any, init: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return nodeFetch(url, { ...init, agent }) as any
+        }
+      } else {
+        this.httpAgent = undefined
+        // Restore original fetch if available
+        if (originalFetch) {
+          global.fetch = originalFetch
+        }
+      }
+    }
+
+    // If only language is updated, don't reset the engine
+    if (!apiKey && !provider && !model && proxyUrl === undefined) {
+      return
+    }
+
+    // Reset current instances
+    this.gemini = null
+    this.openai = null
+    this.isEnabled = false
+    this.provider = 'none'
+
+    if (provider === 'gemini' && apiKey) {
       try {
-        this.gemini = new GoogleGenerativeAI(geminiKey)
+        // Gemini SDK automatically uses fetch, but for Node environment we might need to handle proxy via global agent or custom fetch
+        // Currently Gemini SDK doesn't support direct agent injection easily in v0.1.
+        // However, setting global dispatcher or using fetch with agent is possible if we override fetch.
+        // For now, relying on global fetch which might not pick up env vars automatically in all node versions.
+        // We will pass a custom fetch implementation if needed, but the SDK doesn't expose it in constructor options easily.
+        // Actually, for Gemini REST calls (fetchModels), we use `fetch` directly, so we can inject agent there.
+        this.gemini = new GoogleGenerativeAI(apiKey)
         this.provider = 'gemini'
-        this.modelName = process.env.AI_MODEL || 'gemini-1.5-flash'
+        this.modelName = model || 'gemini-1.5-flash'
         this.isEnabled = true
+        console.log(`AIEngine: Switched to Gemini (Model: ${this.modelName})`)
       } catch (error) {
         console.warn('Failed to initialize Gemini client:', error)
       }
-    }
-
-    if (!this.isEnabled && openaiKey) {
+    } else if (provider === 'openai' && apiKey) {
       try {
-        this.openai = new OpenAI({ apiKey: openaiKey })
+        this.openai = new OpenAI({
+          apiKey,
+          httpAgent: this.httpAgent
+        })
         this.provider = 'openai'
-        this.modelName = process.env.AI_MODEL || 'gpt-4-turbo-preview'
+        this.modelName = model || 'gpt-4.1'
         this.isEnabled = true
+        console.log(`AIEngine: Switched to OpenAI (Model: ${this.modelName})`)
       } catch (error) {
         console.warn('Failed to initialize OpenAI client:', error)
       }
+    } else {
+      console.warn('AIEngine: No valid provider configured.')
+    }
+  }
+
+  async fetchModels(config: { apiKey: string; provider: string; proxyUrl?: string }): Promise<string[]> {
+    const { apiKey, provider, proxyUrl } = config
+    if (!apiKey || !provider) return []
+
+    let agent = this.httpAgent
+    if (proxyUrl) {
+      agent = new HttpsProxyAgent(proxyUrl)
     }
 
-    if (!this.isEnabled) {
-      console.warn('No AI provider configured, AI features will use fallback')
-      this.provider = 'none'
+    try {
+      if (provider === 'gemini') {
+        // Use REST API to list models for Gemini as the SDK might not expose a simple list method yet
+        // or it's cleaner to just fetch.
+        // Use node-fetch to support proxy agent
+        const response = await nodeFetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+          { agent }
+        )
+        if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`)
+        const data = (await response.json()) as { models?: { name: string }[] }
+        return (
+          data.models
+            ?.map((m) => m.name.replace('models/', ''))
+            .filter((n) => n.includes('gemini')) || []
+        )
+      } else if (provider === 'openai') {
+        const openai = new OpenAI({
+          apiKey,
+          httpAgent: agent
+        })
+        const list = await openai.models.list()
+        return list.data.map((m) => m.id).filter((id) => id.includes('gpt'))
+      }
+    } catch (error) {
+      console.error(`Failed to fetch models for ${provider}:`, error)
+      throw error // Re-throw to show error in UI
     }
-    this.contextStore = new ContextMemory()
+    return []
+  }
+
+  async analyzeContent(text: string): Promise<Tag[]> {
+    if (!this.isEnabled) {
+      return []
+    }
+
+    const langInstruction =
+      this.language === 'zh'
+        ? 'Ensure all extracted titles and content descriptions are in Chinese.'
+        : 'Ensure all extracted titles and content descriptions are in English.'
+
+    const prompt = `
+      Analyze the following text extracted from a screen and identify structured knowledge items.
+
+      Text Content:
+      "${text.slice(0, 2000)}"
+
+      Extract items into a JSON array of objects with this structure:
+      {
+        "type": "meeting|task|schedule|problem|data|idea",
+        "title": "Short descriptive title",
+        "content": "The relevant text segment",
+        "confidence": 0.0-1.0,
+        "metadata": { ...specific fields like time, participants, priority... }
+      }
+      ${langInstruction}
+
+      Return ONLY the JSON object with a key "tags" containing the array.
+    `
+
+    try {
+      let resultJson: { tags?: unknown[] } | null = null
+
+      if (this.provider === 'gemini' && this.gemini) {
+        const model = this.gemini.getGenerativeModel({ model: this.modelName })
+        const response = await model.generateContent(prompt)
+        const text = await response.response.text()
+        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '')
+        resultJson = JSON.parse(cleanedText)
+      } else if (this.provider === 'openai' && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.modelName,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a semantic analysis engine. Output valid JSON only.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' }
+        })
+        resultJson = JSON.parse(response.choices[0].message.content ?? '{}')
+      }
+
+      if (resultJson && Array.isArray(resultJson.tags)) {
+        return resultJson.tags.map((tag: unknown) => {
+          const t = tag as Record<string, unknown>
+          return {
+            id: uuidv4(),
+            type: (t.type as Tag['type']) || 'note',
+            title: (t.title as string) || 'Untitled',
+            content: (t.content as string) || '',
+            metadata: (t.metadata as Record<string, unknown>) || {},
+            timestamp: new Date().toISOString(),
+            confidence: (t.confidence as number) || 0.8
+          }
+        })
+      }
+      return []
+    } catch (error) {
+      console.error('AI Analysis failed:', error)
+      return []
+    }
   }
 
   async generateInsights(tags: Tag[], context: ContextWindow): Promise<Insight[]> {
@@ -62,12 +339,17 @@ export class AIEngine {
         const text = await response.response.text()
         resultJson = JSON.parse(text)
       } else if (this.provider === 'openai' && this.openai) {
+        const systemPrompt =
+          this.language === 'zh'
+            ? '你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。请生成结构化 JSON。'
+            : 'You are an intelligent knowledge assistant capable of extracting valuable insights and actionable suggestions from screen content. Please generate structured JSON.'
+
         const response = await this.openai.chat.completions.create({
           model: this.modelName,
           messages: [
             {
               role: 'system',
-              content: `你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。请生成结构化 JSON。`
+              content: systemPrompt
             },
             { role: 'user', content: prompt }
           ],
@@ -143,6 +425,45 @@ export class AIEngine {
   private buildPrompt(tags: Tag[], context: ContextWindow): string {
     const recentInsights = this.contextStore.getRecentInsights(5)
 
+    if (this.language === 'en') {
+      return `
+Screen Content Tags:
+${JSON.stringify(tags, null, 2)}
+
+Context Information:
+${JSON.stringify(context.recentContexts, null, 2)}
+
+Recent Insights (Avoid Duplicates):
+${JSON.stringify(recentInsights, null, 2)}
+
+Please generate structured insights and suggestions in the following format:
+{
+  "insights": [
+    {
+      "type": "task|schedule|note|analysis|reminder",
+      "title": "Insight Title",
+      "content": "Detailed Content",
+      "priority": "low|medium|high",
+      "suggestedActions": [
+        {
+          "type": "create_task|add_calendar|save_note|send_notification",
+          "description": "Suggested Action Description"
+        }
+      ]
+    }
+  ]
+}
+
+Requirements:
+1. Each insight should have practical value.
+2. Priority assessment must be accurate.
+3. Suggested actions must be specific and actionable.
+4. Avoid repetition with recent insights.
+5. Consider context coherence.
+6. ALL OUTPUT MUST BE IN ENGLISH.
+      `
+    }
+
     return `
 屏幕内容标签：
 ${JSON.stringify(tags, null, 2)}
@@ -177,6 +498,7 @@ ${JSON.stringify(recentInsights, null, 2)}
 3. 建议操作要具体可行
 4. 避免与最近的洞察重复
 5. 考虑上下文连贯性
+6. 所有输出必须使用中文。
     `
   }
 

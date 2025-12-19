@@ -1,4 +1,4 @@
-import { desktopCapturer, nativeImage } from 'electron'
+import { desktopCapturer, nativeImage, systemPreferences } from 'electron'
 import { Rectangle } from '../../renderer/src/types'
 
 export class ScreenWatcher {
@@ -14,13 +14,30 @@ export class ScreenWatcher {
 
   async captureScreen(): Promise<Buffer> {
     try {
+      // Check for screen recording permissions on macOS
+      if (process.platform === 'darwin') {
+        const status = systemPreferences.getMediaAccessStatus('screen')
+        console.log('Screen recording permission status:', status)
+        if (status === 'denied') {
+          throw new Error(
+            'Screen recording permission denied. Please enable it in System Settings > Privacy & Security > Screen Recording.'
+          )
+        }
+      }
+
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
         thumbnailSize: { width: 1920, height: 1080 }
       })
 
+      console.log('Available screen sources:', sources.length)
+
       if (sources.length === 0) {
-        throw new Error('No screen sources available')
+        // Try to check if we can get windows at least, which might indicate some access but not full screen
+        const windowSources = await desktopCapturer.getSources({ types: ['window'] })
+        console.log('Available window sources:', windowSources.length)
+
+        throw new Error('No screen sources available. This usually means Screen Recording permission is missing.')
       }
 
       const screenshot = sources[0].thumbnail.toPNG()

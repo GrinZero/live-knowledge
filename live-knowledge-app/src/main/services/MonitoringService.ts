@@ -39,6 +39,8 @@ export class MonitoringService extends EventEmitter {
     presentationService: PresentationService
   ) {
     super()
+    // Use app.getPath('userData')/screenshots to persist across restarts
+    // When in dev mode, this path is usually stable.
     this.screenshotDir = path.join(app.getPath('userData'), 'screenshots')
     this.screenWatcher = screenWatcher
     this.contentAnalyzer = contentAnalyzer
@@ -96,6 +98,9 @@ export class MonitoringService extends EventEmitter {
         this.screenWatcher.setSimilarityThreshold(config.triggerConfig.similarityThreshold)
       }
       this.screenWatcher.reset()
+
+      // Apply config to AI Engine
+      this.aiEngine.updateConfig({ language: config.language ?? 'zh' })
 
       // Start monitoring loop
       this.startMonitoringLoop(config)
@@ -227,8 +232,8 @@ export class MonitoringService extends EventEmitter {
       // Save screenshot
       const screenshotPath = await this.saveScreenshot(screenshot)
 
-      // Extract text from image
-      const extractedText = await this.contentAnalyzer.extractTextFromImage(screenshot)
+      // Analyze image (Text + Structured Content) using unified AI
+      const { text: extractedText, tags } = await this.contentAnalyzer.analyzeImage(screenshot)
 
       if (!extractedText.trim()) {
         console.log('No text found in screenshot')
@@ -236,9 +241,6 @@ export class MonitoringService extends EventEmitter {
       }
 
       console.log(`Extracted text: ${extractedText.substring(0, 100)}...`)
-
-      // Extract structured content
-      const tags = await this.contentAnalyzer.extractStructuredContent(extractedText)
 
       if (tags.length === 0) {
         console.log('No relevant content detected')
@@ -296,7 +298,15 @@ export class MonitoringService extends EventEmitter {
     const filename = `screenshot_${Date.now()}.png`
     const filepath = path.join(this.screenshotDir, filename)
 
-    await fs.writeFile(filepath, screenshot)
+    try {
+      // Ensure directory exists
+      await fs.mkdir(this.screenshotDir, { recursive: true })
+      await fs.writeFile(filepath, screenshot)
+      console.log(`Screenshot saved to: ${filepath}`)
+    } catch (error) {
+      console.error('Failed to save screenshot file:', error)
+      throw error
+    }
 
     // Store screenshot record in database
     await this.database.createScreenshot({

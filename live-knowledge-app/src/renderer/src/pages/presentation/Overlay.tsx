@@ -112,7 +112,7 @@ export default function OverlayPresentation(): React.JSX.Element {
                 }
               }, 300)
             }}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white active:scale-90 cursor-pointer transition-all"
           >
             <X className="h-5 w-5" />
           </button>
@@ -163,7 +163,7 @@ export default function OverlayPresentation(): React.JSX.Element {
                 }
               }, 300)
             }}
-            className="px-3 py-1 text-sm text-gray-400 hover:text-white transition-colors"
+            className="px-3 py-1 text-sm text-gray-400 hover:text-white active:text-gray-200 cursor-pointer transition-colors"
           >
             Dismiss
           </button>
@@ -179,7 +179,7 @@ export default function OverlayPresentation(): React.JSX.Element {
                   }
                 }, 300)
               }}
-              className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              className="px-4 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-95 cursor-pointer text-white text-sm rounded transition-all"
             >
               {insight.suggestedActions[0].type.replace('_', ' ')}
             </button>

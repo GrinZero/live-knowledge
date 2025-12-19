@@ -73,6 +73,7 @@ export interface MonitorConfig {
     similarityThreshold: number
   }
   captureInterval?: number
+  language?: 'zh' | 'en'
 }
 
 export interface Screenshot {

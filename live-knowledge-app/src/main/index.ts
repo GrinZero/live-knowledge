@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -11,10 +11,18 @@ import { ContentAnalyzer } from './services/ContentAnalyzer'
 import { PresentationService } from './services/PresentationService'
 import { APIServer } from './services/APIServer'
 
+// Inject system proxy settings if provided in env
+// We do not hardcode defaults anymore, relying on process.env passed from shell
+// const proxyUrl = 'http://127.0.0.1:7890'
+// process.env.https_proxy = proxyUrl
+// process.env.http_proxy = proxyUrl
+// process.env.all_proxy = 'socks5://127.0.0.1:7890'
+
 let monitoringService: MonitoringService | null = null
 let databaseService: DatabaseService | null = null
 let presentationService: PresentationService | null = null
 let apiServer: APIServer | null = null
+let aiEngine: AIEngine | null = null
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -60,20 +68,44 @@ async function initializeServices(): Promise<void> {
     await databaseService.initialize()
     console.log('Database service initialized')
 
-    // Initialize AI engine (with optional API key)
-    const provider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai'
-    const apiKey = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY
-    const aiEngine = new AIEngine(apiKey, provider as 'gemini' | 'openai')
-    console.log(
-      `AI engine initialized provider=${provider} ${apiKey ? 'with API key' : 'in fallback mode'}`
-    )
+    // Initialize AI engine (with persistence check)
+    aiEngine = new AIEngine()
+
+    // Try to load persisted config for default user
+    try {
+      const persistedConfig = await databaseService.getAIConfig('default_user')
+      if (persistedConfig) {
+        const apiKey = persistedConfig.credentials.apiKey as string
+        const provider = persistedConfig.settings.provider as 'openai' | 'gemini'
+        const model = persistedConfig.settings.model as string
+        const proxyUrl = persistedConfig.settings.proxyUrl as string
+        const language = persistedConfig.settings.language as 'zh' | 'en'
+
+        if (apiKey && provider) {
+          aiEngine.updateConfig({ apiKey, provider, model, proxyUrl, language })
+        }
+      } else {
+        // Fallback to env vars if no persisted config
+        const envProvider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai'
+        const envKey = envProvider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY
+        const envModel = process.env.AI_MODEL
+
+        if (envKey) {
+           aiEngine.updateConfig({ apiKey: envKey, provider: envProvider, model: envModel })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load AI config:', e)
+    }
+
+    console.log('AI engine initialized')
 
     // Initialize screen watcher
     const screenWatcher = new ScreenWatcher()
     console.log('Screen watcher initialized')
 
     // Initialize content analyzer
-    const contentAnalyzer = new ContentAnalyzer()
+    const contentAnalyzer = new ContentAnalyzer(aiEngine)
     console.log('Content analyzer initialized')
 
     // Initialize presentation service
@@ -128,6 +160,38 @@ function setupIpcHandlers(): void {
     return await monitoringService.getStatus()
   })
 
+  ipcMain.handle('settings:getAIConfig', async () => {
+    if (!databaseService) throw new Error('Database service not initialized')
+    // Assuming single user mode for now
+    const config = await databaseService.getAIConfig('default_user')
+    if (!config) return null
+    return {
+      apiKey: config.credentials.apiKey,
+      provider: config.settings.provider,
+      model: config.settings.model,
+      proxyUrl: config.settings.proxyUrl,
+      language: config.settings.language
+    }
+  })
+
+  ipcMain.handle('settings:saveAIConfig', async (_, config: { apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' }) => {
+    if (!databaseService) throw new Error('Database service not initialized')
+    await databaseService.saveAIConfig('default_user', config)
+
+    // Update running instance
+    if (aiEngine) {
+        aiEngine.updateConfig({
+            ...config,
+            provider: config.provider as 'openai' | 'gemini'
+        })
+    }
+  })
+
+  ipcMain.handle('settings:fetchModels', async (_, config: { apiKey: string; provider: string; proxyUrl?: string }) => {
+    if (!aiEngine) throw new Error('AI Engine not initialized')
+    return await aiEngine.fetchModels(config)
+  })
+
   // Database IPC handlers
   ipcMain.handle('db:getUser', async (_, userId: string) => {
     if (!databaseService) throw new Error('Database service not initialized')
@@ -154,6 +218,11 @@ function setupIpcHandlers(): void {
     return await databaseService.searchKnowledge(query)
   })
 
+  ipcMain.handle('db:deleteKnowledgeItem', async (_, id: string) => {
+    if (!databaseService) throw new Error('Database service not initialized')
+    return await databaseService.deleteKnowledgeItem(id)
+  })
+
   ipcMain.handle('db:getUserStats', async (_, userId: string) => {
     if (!databaseService) throw new Error('Database service not initialized')
     return await databaseService.getUserStatistics(userId)
@@ -175,6 +244,17 @@ app.whenReady().then(async () => {
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  // Register custom protocol for serving local media files
+  protocol.handle('media', (request) => {
+    const url = request.url.replace('media://', '')
+    try {
+      return net.fetch('file://' + decodeURIComponent(url))
+    } catch (error) {
+      console.error(error)
+      return new Response('Not Found', { status: 404 })
+    }
   })
 
   // Initialize services

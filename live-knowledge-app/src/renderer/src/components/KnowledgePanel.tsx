@@ -119,8 +119,7 @@ export default function KnowledgePanel(): React.JSX.Element {
   const handleDeleteItem = async (itemId: string) => {
     if (confirm('Are you sure you want to delete this knowledge item?')) {
       try {
-        // TODO: Implement delete functionality in database service
-        console.log('Deleting item:', itemId)
+        await window.api.database.deleteKnowledgeItem(itemId)
         await loadKnowledgeItems()
       } catch (error) {
         console.error('Failed to delete item:', error)
@@ -178,13 +177,13 @@ export default function KnowledgePanel(): React.JSX.Element {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-sm rounded ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-3 py-1 text-sm rounded cursor-pointer active:scale-95 transition-all ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 List
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`px-3 py-1 text-sm rounded ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-3 py-1 text-sm rounded cursor-pointer active:scale-95 transition-all ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 Grid
               </button>
@@ -194,30 +193,29 @@ export default function KnowledgePanel(): React.JSX.Element {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search knowledge items..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+            <div className="flex-1 relative group">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search knowledge..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
 
-          <select
-            value={selectedType}
-            onChange={(e) => handleTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Types</option>
-            <option value="meeting_schedule">Meeting Schedule</option>
-            <option value="task_todo">Task Todo</option>
-            <option value="topic_discussion">Topic Discussion</option>
-            <option value="data_table">Data Table</option>
-            <option value="problem_solving">Problem Solving</option>
-            <option value="insight_context">Insight Context</option>
-          </select>
+            <select
+              value={selectedType}
+              onChange={(e) => handleTypeFilter(e.target.value)}
+              className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+            >
+              <option value="all">All Types</option>
+              <option value="meeting">Meeting</option>
+              <option value="task">Task</option>
+              <option value="schedule">Schedule</option>
+              <option value="problem">Problem</option>
+              <option value="data">Data</option>
+            </select>
 
           <select
             value={`${sortBy}-${sortOrder}`}
@@ -251,7 +249,7 @@ export default function KnowledgePanel(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="flex min-h-0">
+      <div className="flex min-h-0 relative h-full">
         {/* Main Content */}
         <div className="flex-1 min-h-0 p-4 overflow-y-auto overflow-x-hidden">
           {isLoading ? (
@@ -299,7 +297,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                             e.stopPropagation()
                             handleExportItem(item)
                           }}
-                          className="text-gray-500 hover:text-gray-900 transition-colors"
+                          className="text-gray-500 hover:text-gray-900 active:scale-95 cursor-pointer transition-all"
                           title="Export"
                         >
                           <Download className="h-4 w-4" />
@@ -309,7 +307,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                             e.stopPropagation()
                             handleDeleteItem(item.id)
                           }}
-                          className="text-gray-500 hover:text-red-600 transition-colors"
+                          className="text-gray-500 hover:text-red-600 active:scale-95 cursor-pointer transition-all"
                           title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -343,7 +341,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                   <button
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50 hover:bg-gray-300 active:scale-95 cursor-pointer transition-all disabled:cursor-not-allowed"
                   >
                     Prev
                   </button>
@@ -355,7 +353,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                     onClick={() =>
                       setPage((p) => Math.min(Math.ceil(filteredItems.length / pageSize), p + 1))
                     }
-                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50 hover:bg-gray-300 active:scale-95 cursor-pointer transition-all disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
@@ -365,97 +363,124 @@ export default function KnowledgePanel(): React.JSX.Element {
           )}
         </div>
 
-        {/* Detail Panel */}
+        {/* Detail Panel Overlay */}
         {selectedItem && (
-          <div className="w-[28rem] min-h-0 border-l border-gray-200 p-4 overflow-y-auto bg-white">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Item Details</h2>
-              <button
-                onClick={() => setSelectedItem(null)}
-                className="text-gray-500 hover:text-gray-900 transition-colors"
-              >
-                ×
-              </button>
-            </div>
+          <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm transition-opacity"
+              onClick={() => setSelectedItem(null)}
+            />
 
-            <div className="flex flex-col gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Type</label>
-                <div
-                  className={`inline-block px-2 py-1 rounded text-xs ${getTypeColor(selectedItem.type)}`}
-                >
-                  {selectedItem.type.replace('_', ' ').toUpperCase()}
+            {/* Panel */}
+            <div className="relative w-[32rem] h-full bg-white shadow-2xl overflow-y-auto border-l border-gray-200 animate-in slide-in-from-right duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Item Details</h2>
+                  <button
+                    onClick={() => setSelectedItem(null)}
+                    className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-900 active:scale-95 cursor-pointer transition-all"
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Title</label>
-                <p className="text-gray-900">{selectedItem.title}</p>
-              </div>
+                <div className="flex flex-col gap-6">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</label>
+                    <div>
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedItem.type)}`}>
+                        {selectedItem.type.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Content</label>
-                <p className="text-gray-700 text-sm leading-relaxed">{selectedItem.content}</p>
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Title</label>
+                    <p className="text-gray-900 font-medium text-lg leading-snug">{selectedItem.title}</p>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Confidence</label>
-                <div className={`font-medium ${getConfidenceColor(selectedItem.confidence)}`}>
-                  {Math.round(selectedItem.confidence * 100)}%
-                </div>
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Content</label>
+                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap border border-gray-100">
+                      {selectedItem.content}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Created</label>
-                <p className="text-gray-600 text-sm">
-                  {new Date(selectedItem.createdAt).toLocaleString()}
-                </p>
-              </div>
-
-              {typeof selectedItem.metadata?.screenshotPath === 'string' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Screenshot</label>
-                  <img
-                    src={`file://${selectedItem.metadata.screenshotPath as string}`}
-                    alt="screenshot"
-                    className="max-h-64 w-auto rounded border border-gray-200"
-                  />
-                </div>
-              )}
-
-              {selectedItem.metadata && Object.keys(selectedItem.metadata).length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Metadata</label>
-                  <div className="bg-gray-100 rounded p-3 border border-gray-200">
-                    {Object.entries(selectedItem.metadata).map(([key, value]) => (
-                      <div key={key} className="flex justify-between items-center py-1">
-                        <span className="text-gray-500 text-sm">{key}:</span>
-                        <span className="text-gray-800 text-sm">
-                          {Array.isArray(value) ? value.join(', ') : String(value)}
-                        </span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Confidence</label>
+                      <div className={`font-medium text-lg ${getConfidenceColor(selectedItem.confidence)}`}>
+                        {Math.round(selectedItem.confidence * 100)}%
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</label>
+                      <div className="text-gray-900 font-medium">
+                        {new Date(selectedItem.createdAt).toLocaleDateString()}
+                      </div>
+                      <div className="text-gray-500 text-xs">
+                        {new Date(selectedItem.createdAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {typeof selectedItem.metadata?.screenshotPath === 'string' && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Screenshot</label>
+                      <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                        <img
+                          src={`media://${(selectedItem.metadata.screenshotPath as string)}`}
+                          alt="screenshot"
+                          className="w-full h-auto object-cover"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedItem.metadata && Object.keys(selectedItem.metadata).length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Metadata</label>
+                      <div className="bg-gray-50 rounded-lg border border-gray-100 overflow-hidden">
+                        {Object.entries(selectedItem.metadata).map(([key, value], index) => (
+                          <div key={key} className={`flex justify-between items-center px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}>
+                            <span className="text-gray-500 text-xs font-medium">{key}</span>
+                            <span className="text-gray-900 text-xs truncate max-w-[12rem]" title={String(value)}>
+                              {Array.isArray(value) ? value.join(', ') : String(value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Related Insights
+                    </label>
+                    {getRelatedInsights(selectedItem.id).length === 0 ? (
+                      <div className="text-gray-400 text-sm italic">No related insights found</div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {getRelatedInsights(selectedItem.id).map((insight) => (
+                          <div key={insight.id} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white">
+                            <div className="font-semibold text-sm mb-1">{insight.title}</div>
+                            <div className="text-xs text-gray-300 leading-relaxed opacity-90">{insight.content}</div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-medium uppercase tracking-wider">
+                                {insight.type}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Related Insights
-                </label>
-                {getRelatedInsights(selectedItem.id).length === 0 ? (
-                  <p className="text-gray-500 text-sm">No related insights</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {getRelatedInsights(selectedItem.id).map((insight) => (
-                      <div key={insight.id} className="bg-gray-700 rounded p-2">
-                        <div className="font-medium text-sm text-white">{insight.title}</div>
-                        <div className="text-xs text-gray-300">{insight.content}</div>
-                        <div className="text-xs text-gray-400 mt-1">{insight.type}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>

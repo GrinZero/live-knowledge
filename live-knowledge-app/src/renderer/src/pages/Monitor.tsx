@@ -219,7 +219,7 @@ export default function Monitor(): React.JSX.Element {
                 <button
                   onClick={handleStart}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
                 >
                   <Play className="h-4 w-4" />
                   <span>{isLoading ? 'Starting...' : 'Start Monitoring'}</span>
@@ -229,7 +229,7 @@ export default function Monitor(): React.JSX.Element {
                   <button
                     onClick={handlePause}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
                   >
                     <Pause className="h-4 w-4" />
                     <span>{isLoading ? 'Pausing...' : 'Pause'}</span>
@@ -237,7 +237,7 @@ export default function Monitor(): React.JSX.Element {
                   <button
                     onClick={handleStop}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
                   >
                     <Square className="h-4 w-4" />
                     <span>{isLoading ? 'Stopping...' : 'Stop'}</span>
@@ -248,7 +248,7 @@ export default function Monitor(): React.JSX.Element {
                   <button
                     onClick={handleResume}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
                   >
                     <Play className="h-4 w-4" />
                     <span>{isLoading ? 'Resuming...' : 'Resume'}</span>
@@ -256,7 +256,7 @@ export default function Monitor(): React.JSX.Element {
                   <button
                     onClick={handleStop}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
                   >
                     <Square className="h-4 w-4" />
                     <span>{isLoading ? 'Stopping...' : 'Stop'}</span>
@@ -319,7 +319,7 @@ export default function Monitor(): React.JSX.Element {
         <div className="flex-1 p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Recent Insights</h3>
-            <button className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors">
+            <button className="flex items-center gap-2 text-gray-500 hover:text-gray-900 active:text-gray-700 cursor-pointer transition-colors">
               <Settings className="h-4 w-4" />
               <span className="text-sm">Settings</span>
             </button>

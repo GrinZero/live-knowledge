@@ -736,6 +736,45 @@ export class DatabaseService {
     ])
   }
 
+  async getAIConfig(userId: string): Promise<IntegrationConfig | null> {
+    // We treat 'ai_core' as the provider name for the main AI config
+    const row = await this.get('SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?', [userId, 'ai_core'])
+    if (!row) return null
+
+    const r = row as Record<string, unknown>
+    return {
+      id: String(r.id),
+      userId: String(r.user_id),
+      provider: String(r.provider),
+      credentials: JSON.parse(String(r.credentials ?? '{}')),
+      settings: JSON.parse(String(r.settings ?? '{}')),
+      enabled: Boolean(r.enabled),
+      createdAt: String(r.created_at),
+      updatedAt: String(r.updated_at)
+    }
+  }
+
+  async saveAIConfig(userId: string, config: { apiKey: string; provider: string; model: string; proxyUrl?: string }): Promise<void> {
+    const existing = await this.getAIConfig(userId)
+    const now = new Date().toISOString()
+
+    const credentials = { apiKey: config.apiKey }
+    const settings = { provider: config.provider, model: config.model, proxyUrl: config.proxyUrl }
+
+    if (existing) {
+      await this.run(
+        'UPDATE integration_configs SET credentials = ?, settings = ?, updated_at = ? WHERE id = ?',
+        [JSON.stringify(credentials), JSON.stringify(settings), now, existing.id]
+      )
+    } else {
+      const id = uuidv4()
+      await this.run(
+        'INSERT INTO integration_configs (id, user_id, provider, credentials, settings, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, userId, 'ai_core', JSON.stringify(credentials), JSON.stringify(settings), true, now, now]
+      )
+    }
+  }
+
   // Statistics
   async getUserStatistics(userId: string): Promise<{
     totalKnowledgeItems: number

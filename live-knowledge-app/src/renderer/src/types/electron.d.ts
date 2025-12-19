@@ -21,6 +21,7 @@ export interface DatabaseAPI {
   createUser: (userData: unknown) => Promise<unknown>
   getInsights: (limit?: number) => Promise<unknown[]>
   getKnowledgeItems: (limit?: number) => Promise<unknown[]>
+  deleteKnowledgeItem: (id: string) => Promise<void>
   searchKnowledge: (query: string) => Promise<unknown[]>
   getUserStats: (userId: string) => Promise<unknown>
 }
@@ -33,10 +34,17 @@ export interface PresentationAPI {
   updateConfig: (config: unknown) => Promise<{ success: boolean }>
 }
 
+export interface SettingsAPI {
+  getAIConfig: () => Promise<{ apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' } | null>
+  saveAIConfig: (config: { apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' }) => Promise<void>
+  fetchModels: (config: { apiKey: string; provider: string; proxyUrl?: string }) => Promise<string[]>
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
   presentation: PresentationAPI
+  settings: SettingsAPI
 }
 
 declare global {

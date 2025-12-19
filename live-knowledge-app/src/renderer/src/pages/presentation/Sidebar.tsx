@@ -113,7 +113,7 @@ export default function SidebarPresentation(): React.JSX.Element {
                 }
               }, 300)
             }}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white active:scale-90 cursor-pointer transition-all"
           >
             <X className="h-4 w-4" />
           </button>
@@ -161,7 +161,7 @@ export default function SidebarPresentation(): React.JSX.Element {
                       }
                     }, 300)
                   }}
-                  className="w-full text-left px-2 py-1 bg-gray-800 hover:bg-gray-700 text-xs rounded transition-colors"
+                  className="w-full text-left px-2 py-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 active:scale-98 cursor-pointer text-xs rounded transition-all"
                 >
                   {action.type.replace('_', ' ')}
                 </button>

@@ -29,10 +29,10 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
               <Link
                 key={path}
                 to={path}
-                className={`flex w-full items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                className={`flex w-full items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer active:scale-95 ${
                   active
                     ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-200'
                 }`}
               >
                 <Icon className={`h-4 w-4 ${active ? 'text-blue-600' : 'text-gray-500'}`} />

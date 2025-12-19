@@ -34,6 +34,7 @@ const api = {
     }) => ipcRenderer.invoke('db:createUser', userData),
     getInsights: (limit: number = 50) => ipcRenderer.invoke('db:getInsights', limit),
     getKnowledgeItems: (limit: number = 100) => ipcRenderer.invoke('db:getKnowledgeItems', limit),
+    deleteKnowledgeItem: (id: string) => ipcRenderer.invoke('db:deleteKnowledgeItem', id),
     searchKnowledge: (query: string) => ipcRenderer.invoke('db:searchKnowledge', query),
     getUserStats: (userId: string) => ipcRenderer.invoke('db:getUserStats', userId)
   },
@@ -47,6 +48,15 @@ const api = {
     getConfig: () => ipcRenderer.invoke('presentation:getConfig'),
     updateConfig: (config: Partial<PresentationConfig>) =>
       ipcRenderer.invoke('presentation:updateConfig', config)
+  },
+
+  // Settings APIs
+  settings: {
+    getAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
+    saveAIConfig: (config: { apiKey: string; provider: string; model: string; proxyUrl?: string }) =>
+      ipcRenderer.invoke('settings:saveAIConfig', config),
+    fetchModels: (config: { apiKey: string; provider: string; proxyUrl?: string }) =>
+      ipcRenderer.invoke('settings:fetchModels', config)
   }
 }
 

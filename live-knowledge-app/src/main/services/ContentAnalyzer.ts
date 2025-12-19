@@ -1,10 +1,17 @@
 import { createWorker, Worker } from 'tesseract.js'
-import { v4 as uuidv4 } from 'uuid'
 import { Tag } from '../../renderer/src/types'
+import { AIEngine } from './AIEngine'
 
 export class ContentAnalyzer {
   private tesseractWorker: Worker | null = null
   private isWorkerInitialized: boolean = false
+  private aiEngine: AIEngine | null = null
+
+  constructor(aiEngine?: AIEngine) {
+    if (aiEngine) {
+      this.aiEngine = aiEngine
+    }
+  }
 
   async initialize(): Promise<void> {
     if (this.isWorkerInitialized) return
@@ -22,6 +29,28 @@ export class ContentAnalyzer {
       console.error('Failed to initialize Tesseract worker:', error)
       throw error
     }
+  }
+
+  async analyzeImage(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
+    // Priority: Unified AI Image Analysis
+    if (this.aiEngine) {
+      try {
+        console.log('Attempting AI image analysis...')
+        const result = await this.aiEngine.analyzeImage(imageBuffer)
+        // If we got meaningful result, return it
+        if (result.text && result.text.length > 5) {
+          return result
+        }
+      } catch (error) {
+        console.warn('AI image analysis failed, falling back to local OCR pipeline:', error)
+      }
+    }
+
+    // Fallback: Local OCR + Text Analysis
+    console.log('Using fallback OCR pipeline')
+    const text = await this.extractTextFromImage(imageBuffer)
+    const tags = await this.extractStructuredContent(text)
+    return { text, tags }
   }
 
   async extractTextFromImage(imageBuffer: Buffer): Promise<string> {
@@ -46,61 +75,16 @@ export class ContentAnalyzer {
   }
 
   async extractStructuredContent(text: string): Promise<Tag[]> {
-    const tags: Tag[] = []
-
-    // Define patterns for different content types
-    const patterns = {
-      meeting: {
-        regex: /(会议|meeting|讨论|discuss|zoom|teams|google meet)/gi,
-        title: this.extractMeetingTitle.bind(this),
-        metadata: this.extractMeetingMetadata.bind(this)
-      },
-      task: {
-        regex: /(任务|task|待办|todo|完成|complete|做|干|处理)/gi,
-        title: this.extractTaskTitle.bind(this),
-        metadata: this.extractTaskMetadata.bind(this)
-      },
-      schedule: {
-        regex: /(日程|schedule|时间|time|日期|date|明天|今天|后天|下周|下月)/gi,
-        title: this.extractScheduleTitle.bind(this),
-        metadata: this.extractScheduleMetadata.bind(this)
-      },
-      problem: {
-        regex: /(问题|problem|bug|错误|error|故障|修复|fix)/gi,
-        title: this.extractProblemTitle.bind(this),
-        metadata: this.extractProblemMetadata.bind(this)
-      },
-      data: {
-        regex: /(数据|data|表格|table|图表|chart|统计|analysis|报告|report)/gi,
-        title: this.extractDataTitle.bind(this),
-        metadata: this.extractDataMetadata.bind(this)
-      }
+    if (this.aiEngine) {
+      return this.aiEngine.analyzeContent(text)
     }
 
-    // Check each pattern
-    for (const [type, config] of Object.entries(patterns)) {
-      const matches = text.match(config.regex)
-      if (matches && matches.length > 0) {
-        const confidence = this.calculateConfidence(text, config.regex)
-        if (confidence > 0.3) {
-          // Minimum confidence threshold
-          tags.push({
-            id: uuidv4(),
-            type: type as Tag['type'],
-            title: config.title(text, matches),
-            content: text,
-            metadata: config.metadata(text, matches),
-            timestamp: new Date().toISOString(),
-            confidence
-          })
-        }
-      }
-    }
-
-    return tags
+    // Fallback if no AI engine is available (return empty or basic)
+    console.warn('ContentAnalyzer: No AI Engine available, skipping structured extraction.')
+    return []
   }
 
-  private calculateConfidence(text: string, pattern: RegExp): number {
+  public calculateConfidence(text: string, pattern: RegExp): number {
     const matches = text.match(pattern)
     if (!matches) return 0
 
@@ -113,7 +97,7 @@ export class ContentAnalyzer {
     return Math.min(0.95, keywordDensity * 2)
   }
 
-  private extractMeetingTitle(text: string, matches: RegExpMatchArray): string {
+  public extractMeetingTitle(text: string, matches: RegExpMatchArray): string {
     // Look for meeting titles after meeting keywords
     const lines = text.split('\n')
     for (const line of lines) {
@@ -128,7 +112,7 @@ export class ContentAnalyzer {
     return '会议讨论'
   }
 
-  private extractMeetingMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+  public extractMeetingMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
     const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       participants: this.extractParticipants(text),
@@ -138,7 +122,7 @@ export class ContentAnalyzer {
     return metadata
   }
 
-  private extractTaskTitle(text: string, matches: RegExpMatchArray): string {
+  public extractTaskTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
       if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
@@ -152,7 +136,7 @@ export class ContentAnalyzer {
     return '待办任务'
   }
 
-  private extractTaskMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+  public extractTaskMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
     const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       priority: this.detectTaskPriority(text),
@@ -162,7 +146,7 @@ export class ContentAnalyzer {
     return metadata
   }
 
-  private extractScheduleTitle(text: string, matches: RegExpMatchArray): string {
+  public extractScheduleTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
       if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
@@ -175,7 +159,7 @@ export class ContentAnalyzer {
     return '日程安排'
   }
 
-  private extractScheduleMetadata(
+  public extractScheduleMetadata(
     text: string,
     matches: RegExpMatchArray
   ): Record<string, unknown> {
@@ -188,7 +172,7 @@ export class ContentAnalyzer {
     return metadata
   }
 
-  private extractProblemTitle(text: string, matches: RegExpMatchArray): string {
+  public extractProblemTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
       if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
@@ -201,7 +185,7 @@ export class ContentAnalyzer {
     return '问题反馈'
   }
 
-  private extractProblemMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+  public extractProblemMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
     const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       severity: this.detectProblemSeverity(text),
@@ -211,7 +195,7 @@ export class ContentAnalyzer {
     return metadata
   }
 
-  private extractDataTitle(text: string, matches: RegExpMatchArray): string {
+  public extractDataTitle(text: string, matches: RegExpMatchArray): string {
     const lines = text.split('\n')
     for (const line of lines) {
       if (matches.some((match) => line.toLowerCase().includes(match.toLowerCase()))) {
@@ -224,7 +208,7 @@ export class ContentAnalyzer {
     return '数据分析'
   }
 
-  private extractDataMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
+  public extractDataMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
     const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       dataType: this.detectDataType(text),
