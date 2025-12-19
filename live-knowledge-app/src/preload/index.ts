@@ -53,8 +53,12 @@ const api = {
   // Settings APIs
   settings: {
     getAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
-    saveAIConfig: (config: { apiKey: string; provider: string; model: string; proxyUrl?: string }) =>
-      ipcRenderer.invoke('settings:saveAIConfig', config),
+    saveAIConfig: (config: {
+      apiKey: string
+      provider: string
+      model: string
+      proxyUrl?: string
+    }) => ipcRenderer.invoke('settings:saveAIConfig', config),
     fetchModels: (config: { apiKey: string; provider: string; proxyUrl?: string }) =>
       ipcRenderer.invoke('settings:fetchModels', config)
   }

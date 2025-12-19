@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import { useState, useEffect } from 'react'
 import { Search, Calendar, Tag, Trash2, Download } from 'lucide-react'
 
@@ -193,29 +192,29 @@ export default function KnowledgePanel(): React.JSX.Element {
         </div>
 
         <div className="flex items-center gap-3">
-            <div className="flex-1 relative group">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-              <input
-                type="text"
-                placeholder="Search knowledge..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              />
-            </div>
+          <div className="flex-1 relative group">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+            <input
+              type="text"
+              placeholder="Search knowledge..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
+          </div>
 
-            <select
-              value={selectedType}
-              onChange={(e) => handleTypeFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
-            >
-              <option value="all">All Types</option>
-              <option value="meeting">Meeting</option>
-              <option value="task">Task</option>
-              <option value="schedule">Schedule</option>
-              <option value="problem">Problem</option>
-              <option value="data">Data</option>
-            </select>
+          <select
+            value={selectedType}
+            onChange={(e) => handleTypeFilter(e.target.value)}
+            className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+          >
+            <option value="all">All Types</option>
+            <option value="meeting">Meeting</option>
+            <option value="task">Task</option>
+            <option value="schedule">Schedule</option>
+            <option value="problem">Problem</option>
+            <option value="data">Data</option>
+          </select>
 
           <select
             value={`${sortBy}-${sortOrder}`}
@@ -383,28 +382,43 @@ export default function KnowledgePanel(): React.JSX.Element {
                   >
                     <span className="sr-only">Close</span>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
 
                 <div className="flex flex-col gap-6">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</label>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Type
+                    </label>
                     <div>
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedItem.type)}`}>
+                      <span
+                        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedItem.type)}`}
+                      >
                         {selectedItem.type.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Title</label>
-                    <p className="text-gray-900 font-medium text-lg leading-snug">{selectedItem.title}</p>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Title
+                    </label>
+                    <p className="text-gray-900 font-medium text-lg leading-snug">
+                      {selectedItem.title}
+                    </p>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Content</label>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Content
+                    </label>
                     <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap border border-gray-100">
                       {selectedItem.content}
                     </div>
@@ -412,14 +426,20 @@ export default function KnowledgePanel(): React.JSX.Element {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Confidence</label>
-                      <div className={`font-medium text-lg ${getConfidenceColor(selectedItem.confidence)}`}>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Confidence
+                      </label>
+                      <div
+                        className={`font-medium text-lg ${getConfidenceColor(selectedItem.confidence)}`}
+                      >
                         {Math.round(selectedItem.confidence * 100)}%
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</label>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Created
+                      </label>
                       <div className="text-gray-900 font-medium">
                         {new Date(selectedItem.createdAt).toLocaleDateString()}
                       </div>
@@ -431,10 +451,12 @@ export default function KnowledgePanel(): React.JSX.Element {
 
                   {typeof selectedItem.metadata?.screenshotPath === 'string' && (
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Screenshot</label>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Screenshot
+                      </label>
                       <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                         <img
-                          src={`media://${(selectedItem.metadata.screenshotPath as string)}`}
+                          src={`media://${selectedItem.metadata.screenshotPath as string}`}
                           alt="screenshot"
                           className="w-full h-auto object-cover"
                         />
@@ -444,12 +466,20 @@ export default function KnowledgePanel(): React.JSX.Element {
 
                   {selectedItem.metadata && Object.keys(selectedItem.metadata).length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Metadata</label>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Metadata
+                      </label>
                       <div className="bg-gray-50 rounded-lg border border-gray-100 overflow-hidden">
                         {Object.entries(selectedItem.metadata).map(([key, value], index) => (
-                          <div key={key} className={`flex justify-between items-center px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}>
+                          <div
+                            key={key}
+                            className={`flex justify-between items-center px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}
+                          >
                             <span className="text-gray-500 text-xs font-medium">{key}</span>
-                            <span className="text-gray-900 text-xs truncate max-w-[12rem]" title={String(value)}>
+                            <span
+                              className="text-gray-900 text-xs truncate max-w-[12rem]"
+                              title={String(value)}
+                            >
                               {Array.isArray(value) ? value.join(', ') : String(value)}
                             </span>
                           </div>
@@ -467,9 +497,14 @@ export default function KnowledgePanel(): React.JSX.Element {
                     ) : (
                       <div className="flex flex-col gap-3">
                         {getRelatedInsights(selectedItem.id).map((insight) => (
-                          <div key={insight.id} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white">
+                          <div
+                            key={insight.id}
+                            className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white"
+                          >
                             <div className="font-semibold text-sm mb-1">{insight.title}</div>
-                            <div className="text-xs text-gray-300 leading-relaxed opacity-90">{insight.content}</div>
+                            <div className="text-xs text-gray-300 leading-relaxed opacity-90">
+                              {insight.content}
+                            </div>
                             <div className="mt-2 flex items-center gap-2">
                               <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-medium uppercase tracking-wider">
                                 {insight.type}

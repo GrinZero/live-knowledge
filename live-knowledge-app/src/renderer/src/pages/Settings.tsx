@@ -20,7 +20,9 @@ export default function Settings(): React.JSX.Element {
     language: 'zh'
   })
   // Cache for provider settings to restore when switching back
-  const [providerCache, setProviderCache] = useState<Record<string, { apiKey: string; model: string }>>({})
+  const [providerCache, setProviderCache] = useState<
+    Record<string, { apiKey: string; model: string }>
+  >({})
 
   const [isLoading, setIsLoading] = useState(false)
   const [availableModels, setAvailableModels] = useState<string[]>([])
@@ -37,14 +39,14 @@ export default function Settings(): React.JSX.Element {
     // Update defaults or restore from cache when provider changes
     if (aiConfig.provider === 'openai') {
       const cached = providerCache['openai']
-      setAiConfig(prev => ({
+      setAiConfig((prev) => ({
         ...prev,
         apiKey: cached?.apiKey || '',
         model: cached?.model || 'gpt-4.1'
       }))
     } else if (aiConfig.provider === 'gemini') {
       const cached = providerCache['gemini']
-      setAiConfig(prev => ({
+      setAiConfig((prev) => ({
         ...prev,
         apiKey: cached?.apiKey || '',
         model: cached?.model || 'gemini-2.5-flash'
@@ -55,7 +57,7 @@ export default function Settings(): React.JSX.Element {
   // Update cache when config changes
   useEffect(() => {
     if (aiConfig.provider && (aiConfig.apiKey || aiConfig.model)) {
-      setProviderCache(prev => ({
+      setProviderCache((prev) => ({
         ...prev,
         [aiConfig.provider]: {
           apiKey: aiConfig.apiKey,
@@ -78,7 +80,7 @@ export default function Settings(): React.JSX.Element {
         })
         // Initialize cache with loaded config
         if (config.provider) {
-          setProviderCache(prev => ({
+          setProviderCache((prev) => ({
             ...prev,
             [config.provider]: {
               apiKey: config.apiKey,
@@ -230,7 +232,9 @@ export default function Settings(): React.JSX.Element {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Proxy URL (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Proxy URL (Optional)
+                </label>
                 <input
                   type="text"
                   value={aiConfig.proxyUrl}
@@ -264,9 +268,7 @@ export default function Settings(): React.JSX.Element {
                       type="text"
                       value={aiConfig.model}
                       onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
-                      placeholder={
-                        aiConfig.provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4.1'
-                      }
+                      placeholder={aiConfig.provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4.1'}
                       className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
                     />
                   )}
@@ -298,10 +300,14 @@ export default function Settings(): React.JSX.Element {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Language / 语言</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Language / 语言
+                </label>
                 <select
                   value={aiConfig.language}
-                  onChange={(e) => setAiConfig({ ...aiConfig, language: e.target.value as 'zh' | 'en' })}
+                  onChange={(e) =>
+                    setAiConfig({ ...aiConfig, language: e.target.value as 'zh' | 'en' })
+                  }
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
                 >
                   <option value="zh">中文 (Chinese)</option>

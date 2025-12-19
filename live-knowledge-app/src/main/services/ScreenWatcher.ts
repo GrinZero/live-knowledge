@@ -37,7 +37,9 @@ export class ScreenWatcher {
         const windowSources = await desktopCapturer.getSources({ types: ['window'] })
         console.log('Available window sources:', windowSources.length)
 
-        throw new Error('No screen sources available. This usually means Screen Recording permission is missing.')
+        throw new Error(
+          'No screen sources available. This usually means Screen Recording permission is missing.'
+        )
       }
 
       const screenshot = sources[0].thumbnail.toPNG()

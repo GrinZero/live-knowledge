@@ -159,10 +159,7 @@ export class ContentAnalyzer {
     return '日程安排'
   }
 
-  public extractScheduleMetadata(
-    text: string,
-    matches: RegExpMatchArray
-  ): Record<string, unknown> {
+  public extractScheduleMetadata(text: string, matches: RegExpMatchArray): Record<string, unknown> {
     const metadata: Record<string, unknown> = {
       detectedKeywords: matches,
       time: this.extractTime(text),

@@ -1,5 +1,7 @@
 import sqlite3 from 'sqlite3'
-//
+import { app } from 'electron'
+import path from 'path'
+import { promises as fs } from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import {
   User,
@@ -17,11 +19,35 @@ export class DatabaseService {
   private db: sqlite3.Database | null = null
   private dbPath: string
 
-  constructor(dbPath: string = './live-knowledge.db') {
-    this.dbPath = dbPath
+  constructor(dbPath?: string) {
+    if (dbPath && dbPath.length > 0) {
+      this.dbPath = dbPath
+    } else {
+      const userDataDir = app.getPath('userData')
+      this.dbPath = path.join(userDataDir, 'live-knowledge.db')
+    }
   }
 
   async initialize(): Promise<void> {
+    const dir = path.dirname(this.dbPath)
+    await fs.mkdir(dir, { recursive: true })
+    const legacyPath = path.resolve('./live-knowledge.db')
+    try {
+      const [legacyStat, newStat] = await Promise.allSettled([
+        fs.stat(legacyPath),
+        fs.stat(this.dbPath)
+      ])
+      if (legacyStat.status === 'fulfilled' && newStat.status === 'rejected') {
+        try {
+          await fs.rename(legacyPath, this.dbPath)
+        } catch {
+          const data = await fs.readFile(legacyPath)
+          await fs.writeFile(this.dbPath, data)
+        }
+      }
+    } catch (_e) {
+      void _e
+    }
     return new Promise((resolve, reject) => {
       this.db = new sqlite3.Database(this.dbPath, (err) => {
         if (err) {
@@ -738,7 +764,10 @@ export class DatabaseService {
 
   async getAIConfig(userId: string): Promise<IntegrationConfig | null> {
     // We treat 'ai_core' as the provider name for the main AI config
-    const row = await this.get('SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?', [userId, 'ai_core'])
+    const row = await this.get(
+      'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
+      [userId, 'ai_core']
+    )
     if (!row) return null
 
     const r = row as Record<string, unknown>
@@ -754,7 +783,10 @@ export class DatabaseService {
     }
   }
 
-  async saveAIConfig(userId: string, config: { apiKey: string; provider: string; model: string; proxyUrl?: string }): Promise<void> {
+  async saveAIConfig(
+    userId: string,
+    config: { apiKey: string; provider: string; model: string; proxyUrl?: string }
+  ): Promise<void> {
     const existing = await this.getAIConfig(userId)
     const now = new Date().toISOString()
 
@@ -770,7 +802,16 @@ export class DatabaseService {
       const id = uuidv4()
       await this.run(
         'INSERT INTO integration_configs (id, user_id, provider, credentials, settings, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, userId, 'ai_core', JSON.stringify(credentials), JSON.stringify(settings), true, now, now]
+        [
+          id,
+          userId,
+          'ai_core',
+          JSON.stringify(credentials),
+          JSON.stringify(settings),
+          true,
+          now,
+          now
+        ]
       )
     }
   }

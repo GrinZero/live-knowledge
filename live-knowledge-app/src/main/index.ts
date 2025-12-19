@@ -87,11 +87,12 @@ async function initializeServices(): Promise<void> {
       } else {
         // Fallback to env vars if no persisted config
         const envProvider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai'
-        const envKey = envProvider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY
+        const envKey =
+          envProvider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY
         const envModel = process.env.AI_MODEL
 
         if (envKey) {
-           aiEngine.updateConfig({ apiKey: envKey, provider: envProvider, model: envModel })
+          aiEngine.updateConfig({ apiKey: envKey, provider: envProvider, model: envModel })
         }
       }
     } catch (e) {
@@ -174,23 +175,38 @@ function setupIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('settings:saveAIConfig', async (_, config: { apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' }) => {
-    if (!databaseService) throw new Error('Database service not initialized')
-    await databaseService.saveAIConfig('default_user', config)
+  ipcMain.handle(
+    'settings:saveAIConfig',
+    async (
+      _,
+      config: {
+        apiKey: string
+        provider: string
+        model: string
+        proxyUrl?: string
+        language?: 'zh' | 'en'
+      }
+    ) => {
+      if (!databaseService) throw new Error('Database service not initialized')
+      await databaseService.saveAIConfig('default_user', config)
 
-    // Update running instance
-    if (aiEngine) {
+      // Update running instance
+      if (aiEngine) {
         aiEngine.updateConfig({
-            ...config,
-            provider: config.provider as 'openai' | 'gemini'
+          ...config,
+          provider: config.provider as 'openai' | 'gemini'
         })
+      }
     }
-  })
+  )
 
-  ipcMain.handle('settings:fetchModels', async (_, config: { apiKey: string; provider: string; proxyUrl?: string }) => {
-    if (!aiEngine) throw new Error('AI Engine not initialized')
-    return await aiEngine.fetchModels(config)
-  })
+  ipcMain.handle(
+    'settings:fetchModels',
+    async (_, config: { apiKey: string; provider: string; proxyUrl?: string }) => {
+      if (!aiEngine) throw new Error('AI Engine not initialized')
+      return await aiEngine.fetchModels(config)
+    }
+  )
 
   // Database IPC handlers
   ipcMain.handle('db:getUser', async (_, userId: string) => {

@@ -35,9 +35,25 @@ export interface PresentationAPI {
 }
 
 export interface SettingsAPI {
-  getAIConfig: () => Promise<{ apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' } | null>
-  saveAIConfig: (config: { apiKey: string; provider: string; model: string; proxyUrl?: string; language?: 'zh' | 'en' }) => Promise<void>
-  fetchModels: (config: { apiKey: string; provider: string; proxyUrl?: string }) => Promise<string[]>
+  getAIConfig: () => Promise<{
+    apiKey: string
+    provider: string
+    model: string
+    proxyUrl?: string
+    language?: 'zh' | 'en'
+  } | null>
+  saveAIConfig: (config: {
+    apiKey: string
+    provider: string
+    model: string
+    proxyUrl?: string
+    language?: 'zh' | 'en'
+  }) => Promise<void>
+  fetchModels: (config: {
+    apiKey: string
+    provider: string
+    proxyUrl?: string
+  }) => Promise<string[]>
 }
 
 export interface API {

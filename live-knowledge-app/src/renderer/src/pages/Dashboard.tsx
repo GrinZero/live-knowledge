@@ -23,7 +23,9 @@ export default function Dashboard(): React.JSX.Element {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-base text-gray-500">Real-time system monitoring and knowledge insights.</p>
+        <p className="mt-2 text-base text-gray-500">
+          Real-time system monitoring and knowledge insights.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -38,7 +40,7 @@ export default function Dashboard(): React.JSX.Element {
           </div>
           <div className="text-4xl font-bold mt-4 text-gray-900">{insightCount}</div>
         </div>
-        
+
         <div className="p-6 rounded-2xl border border-gray-200 bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

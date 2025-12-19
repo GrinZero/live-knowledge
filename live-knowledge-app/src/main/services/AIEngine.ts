@@ -117,15 +117,16 @@ export class AIEngine {
       }
 
       const text = resultJson?.text || ''
-      const tags = (resultJson?.tags as Record<string, unknown>[])?.map((t) => ({
-        id: uuidv4(),
-        type: (t.type as Tag['type']) || 'insight_context',
-        title: (t.title as string) || 'Untitled',
-        content: (t.content as string) || '',
-        metadata: (t.metadata as Record<string, unknown>) || {},
-        timestamp: new Date().toISOString(),
-        confidence: (t.confidence as number) || 0.8
-      })) || []
+      const tags =
+        (resultJson?.tags as Record<string, unknown>[])?.map((t) => ({
+          id: uuidv4(),
+          type: (t.type as Tag['type']) || 'insight_context',
+          title: (t.title as string) || 'Untitled',
+          content: (t.content as string) || '',
+          metadata: (t.metadata as Record<string, unknown>) || {},
+          timestamp: new Date().toISOString(),
+          confidence: (t.confidence as number) || 0.8
+        })) || []
 
       return { text, tags }
     } catch (error) {
@@ -134,7 +135,13 @@ export class AIEngine {
     }
   }
 
-  updateConfig(config: { apiKey?: string; provider?: 'openai' | 'gemini'; model?: string; proxyUrl?: string; language?: 'zh' | 'en' }): void {
+  updateConfig(config: {
+    apiKey?: string
+    provider?: 'openai' | 'gemini'
+    model?: string
+    proxyUrl?: string
+    language?: 'zh' | 'en'
+  }): void {
     const { apiKey, provider, model, proxyUrl, language } = config
 
     if (language) {
@@ -207,7 +214,11 @@ export class AIEngine {
     }
   }
 
-  async fetchModels(config: { apiKey: string; provider: string; proxyUrl?: string }): Promise<string[]> {
+  async fetchModels(config: {
+    apiKey: string
+    provider: string
+    proxyUrl?: string
+  }): Promise<string[]> {
     const { apiKey, provider, proxyUrl } = config
     if (!apiKey || !provider) return []
 
