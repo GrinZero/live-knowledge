@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Search, Calendar, Tag, Trash2, Download } from 'lucide-react'
+import { Search, Calendar, Tag, Trash2, Download, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ImagePreview } from '@/components/ImagePreview'
 
 interface KnowledgeItem {
   id: string
@@ -12,16 +14,18 @@ interface KnowledgeItem {
   createdAt: string
 }
 
+import { Action } from '@/types'
+
 interface Insight {
   id: string
-  knowledgeItemId: string
+  knowledgeItemId?: string
   type: 'task' | 'schedule' | 'note' | 'analysis' | 'reminder'
   title: string
   content: string
   priority: 'low' | 'medium' | 'high'
-  suggestedActions: Array<Record<string, unknown>>
+  suggestedActions: Action[]
   metadata: Record<string, unknown>
-  createdAt: string
+  createdAt?: string
 }
 
 export default function KnowledgePanel(): React.JSX.Element {
@@ -39,8 +43,28 @@ export default function KnowledgePanel(): React.JSX.Element {
   const [pageSize, setPageSize] = useState(24)
 
   useEffect(() => {
+    // Initial load
     loadKnowledgeItems()
     loadInsights()
+
+    // Listen for real-time updates
+    const handleInsightGenerated = (newInsight: Insight) => {
+      setInsights((prev) => {
+        // Prevent duplicates
+        if (prev.some((i) => i.id === newInsight.id)) return prev
+        return [newInsight, ...prev]
+      })
+      // Also reload knowledge items to update counts/relationships
+      loadKnowledgeItems()
+    }
+
+    // Subscribe to events
+    window.api.monitoring.onInsight(handleInsightGenerated)
+
+    // @ts-ignore: Preload API does not return cleanup yet
+    return () => {
+      // No cleanup available yet
+    }
   }, [])
 
   useEffect(() => {
@@ -53,6 +77,8 @@ export default function KnowledgePanel(): React.JSX.Element {
     try {
       const items = await window.api.database.getKnowledgeItems(100)
       setKnowledgeItems(items)
+      // When knowledge items change (e.g. deletion), we should also update filtered items
+      // But filteredItems is updated via useEffect dep on knowledgeItems, so this is fine.
     } catch (error) {
       console.error('Failed to load knowledge items:', error)
     } finally {
@@ -119,9 +145,17 @@ export default function KnowledgePanel(): React.JSX.Element {
     if (confirm('Are you sure you want to delete this knowledge item?')) {
       try {
         await window.api.database.deleteKnowledgeItem(itemId)
-        await loadKnowledgeItems()
+        // Manually update local state to reflect deletion immediately
+        setKnowledgeItems((prev) => prev.filter((item) => item.id !== itemId))
+        // Also remove related insights from local state
+        setInsights((prev) => prev.filter((insight) => insight.knowledgeItemId !== itemId))
+        if (selectedItem?.id === itemId) {
+          setSelectedItem(null)
+        }
       } catch (error) {
         console.error('Failed to delete item:', error)
+        // Fallback to reload if local update fails or is out of sync
+        await loadKnowledgeItems()
       }
     }
   }
@@ -174,18 +208,20 @@ export default function KnowledgePanel(): React.JSX.Element {
           <h1 className="text-2xl font-bold">知识库</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-sm rounded cursor-pointer active:scale-95 transition-all ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 List
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => setViewMode('grid')}
-                className={`px-3 py-1 text-sm rounded cursor-pointer active:scale-95 transition-all ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 Grid
-              </button>
+              </Button>
             </div>
             <span className="text-sm text-gray-400">{filteredItems.length} items</span>
           </div>
@@ -291,26 +327,30 @@ export default function KnowledgePanel(): React.JSX.Element {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-500 hover:text-gray-900"
                           onClick={(e) => {
                             e.stopPropagation()
                             handleExportItem(item)
                           }}
-                          className="text-gray-500 hover:text-gray-900 active:scale-95 cursor-pointer transition-all"
                           title="Export"
                         >
                           <Download className="h-4 w-4" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation()
                             handleDeleteItem(item.id)
                           }}
-                          className="text-gray-500 hover:text-red-600 active:scale-95 cursor-pointer transition-all"
                           title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
@@ -337,25 +377,27 @@ export default function KnowledgePanel(): React.JSX.Element {
                   {Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50 hover:bg-gray-300 active:scale-95 cursor-pointer transition-all disabled:cursor-not-allowed"
                   >
                     Prev
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600">
                     Page {page} / {Math.max(1, Math.ceil(filteredItems.length / pageSize))}
                   </span>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={page >= Math.ceil(filteredItems.length / pageSize)}
                     onClick={() =>
                       setPage((p) => Math.min(Math.ceil(filteredItems.length / pageSize), p + 1))
                     }
-                    className="px-3 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50 hover:bg-gray-300 active:scale-95 cursor-pointer transition-all disabled:cursor-not-allowed"
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>
@@ -376,20 +418,15 @@ export default function KnowledgePanel(): React.JSX.Element {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900">Item Details</h2>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setSelectedItem(null)}
-                    className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-900 active:scale-95 cursor-pointer transition-all"
+                    className="rounded-full"
                   >
                     <span className="sr-only">Close</span>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                    <X className="w-5 h-5" />
+                  </Button>
                 </div>
 
                 <div className="flex flex-col gap-6">
@@ -449,17 +486,31 @@ export default function KnowledgePanel(): React.JSX.Element {
                     </div>
                   </div>
 
-                  {typeof selectedItem.metadata?.screenshotPath === 'string' && (
+                  {(typeof selectedItem.metadata?.screenshotPath === 'string' ||
+                    Array.isArray(selectedItem.metadata?.screenshotPath)) && (
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Screenshot
                       </label>
                       <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                        <img
-                          src={`media://${selectedItem.metadata.screenshotPath as string}`}
-                          alt="screenshot"
-                          className="w-full h-auto object-cover"
-                        />
+                        {Array.isArray(selectedItem.metadata.screenshotPath) ? (
+                          <div className="grid grid-cols-1 gap-2">
+                            {selectedItem.metadata.screenshotPath.map((path, i) => (
+                              <ImagePreview
+                                key={i}
+                                src={`media://${String(path)}`}
+                                className="w-full h-auto object-cover"
+                                alt={`screenshot-${i}`}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <ImagePreview
+                            src={`media://${selectedItem.metadata.screenshotPath as string}`}
+                            alt="screenshot"
+                            className="w-full h-auto object-cover"
+                          />
+                        )}
                       </div>
                     </div>
                   )}
@@ -473,15 +524,20 @@ export default function KnowledgePanel(): React.JSX.Element {
                         {Object.entries(selectedItem.metadata).map(([key, value], index) => (
                           <div
                             key={key}
-                            className={`flex justify-between items-center px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}
+                            className={`flex flex-col gap-1 px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}
                           >
                             <span className="text-gray-500 text-xs font-medium">{key}</span>
-                            <span
-                              className="text-gray-900 text-xs truncate max-w-[12rem]"
-                              title={String(value)}
-                            >
-                              {Array.isArray(value) ? value.join(', ') : String(value)}
-                            </span>
+                            <div className="text-gray-900 text-xs break-all whitespace-pre-wrap bg-white p-2 rounded border border-gray-100 max-h-60 overflow-y-auto">
+                              {Array.isArray(value)
+                                ? value
+                                    .map((v) =>
+                                      typeof v === 'object' ? JSON.stringify(v) : String(v)
+                                    )
+                                    .join(', ')
+                                : typeof value === 'object' && value !== null
+                                  ? JSON.stringify(value, null, 2)
+                                  : String(value)}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -505,6 +561,33 @@ export default function KnowledgePanel(): React.JSX.Element {
                             <div className="text-xs text-gray-300 leading-relaxed opacity-90">
                               {insight.content}
                             </div>
+                            {((typeof insight.metadata?.screenshotPath === 'string' &&
+                              insight.metadata.screenshotPath) ||
+                              (Array.isArray(insight.metadata?.screenshotPath) &&
+                                insight.metadata.screenshotPath.length > 0)) && (
+                              <div className="mt-2 rounded overflow-hidden border border-white/10">
+                                {Array.isArray(insight.metadata?.screenshotPath) ? (
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {(insight.metadata.screenshotPath as string[]).map(
+                                      (path, i) => (
+                                        <ImagePreview
+                                          key={i}
+                                          src={`media://${path}`}
+                                          alt={`insight screenshot ${i}`}
+                                          className="w-full h-auto object-cover"
+                                        />
+                                      )
+                                    )}
+                                  </div>
+                                ) : (
+                                  <ImagePreview
+                                    src={`media://${insight.metadata?.screenshotPath as string}`}
+                                    alt="insight screenshot"
+                                    className="w-full h-auto object-cover"
+                                  />
+                                )}
+                              </div>
+                            )}
                             <div className="mt-2 flex items-center gap-2">
                               <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-medium uppercase tracking-wider">
                                 {insight.type}

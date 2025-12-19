@@ -249,7 +249,7 @@ export class MonitoringService extends EventEmitter {
         extractedText = aggregated.text
         tags = aggregated.tags
       }
-      const screenshotPath = frames[0].screenshotPath
+      const screenshotPaths = frames.map((f) => f.screenshotPath)
 
       if (!extractedText.trim()) {
         console.log('No text found in screenshot')
@@ -269,7 +269,7 @@ export class MonitoringService extends EventEmitter {
       )
 
       // Create knowledge item
-      const knowledgeItem = await this.createKnowledgeItem(tags, extractedText, screenshotPath)
+      const knowledgeItem = await this.createKnowledgeItem(tags, extractedText, screenshotPaths)
 
       // Generate insights using AI
       const context = await this.buildContext()
@@ -277,10 +277,27 @@ export class MonitoringService extends EventEmitter {
 
       // Store insights and present them
       for (const insight of insights) {
+        // Inject screenshot path into metadata
+        // Use the relatedImageIndex from AI to pick the most relevant screenshot
+        // Fallback to first screenshot if index is invalid or missing
+        let primaryScreenshot: string
+        const index = (insight.metadata.relatedImageIndex as number) ?? 0
+
+        if (Array.isArray(screenshotPaths)) {
+          primaryScreenshot = screenshotPaths[index] || screenshotPaths[0]
+        } else {
+          primaryScreenshot = screenshotPaths
+        }
+
+        insight.metadata = {
+          ...insight.metadata,
+          screenshotPath: primaryScreenshot
+        }
+
         await this.createInsight(knowledgeItem.id, insight)
 
         // Emit insight event for real-time updates (attach screenshot path for renderer)
-        this.emit('insightGenerated', { ...insight, screenshotPath: screenshotPath })
+        this.emit('insightGenerated', { ...insight, screenshotPath: primaryScreenshot })
 
         // Present the insight using presentation service
         if (this.presentationService) {
@@ -296,7 +313,7 @@ export class MonitoringService extends EventEmitter {
       await this.createTriggerEvent('screen_context', {
         tags,
         insights,
-        screenshotPath,
+        screenshotPath: screenshotPaths,
         extractedText: extractedText.substring(0, 500) // Store first 500 chars
       })
 
@@ -444,7 +461,7 @@ export class MonitoringService extends EventEmitter {
   private async createKnowledgeItem(
     tags: Tag[],
     content: string,
-    screenshotPath: string
+    screenshotPath: string | string[]
   ): Promise<KnowledgeItem> {
     const primaryTag = tags.reduce((prev, current) =>
       prev.confidence > current.confidence ? prev : current

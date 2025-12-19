@@ -3,13 +3,14 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { MonitoringService } from './services/MonitoringService'
-import { MonitorConfig } from '../renderer/src/types'
+import type { MonitorConfig } from '../renderer/src/types'
 import { DatabaseService } from './services/DatabaseService'
 import { AIEngine } from './services/AIEngine'
 import { ScreenWatcher } from './services/ScreenWatcher'
 import { ContentAnalyzer } from './services/ContentAnalyzer'
 import { PresentationService } from './services/PresentationService'
 import { APIServer } from './services/APIServer'
+import { pathToFileURL } from 'url'
 
 // Inject system proxy settings if provided in env
 // We do not hardcode defaults anymore, relying on process.env passed from shell
@@ -263,12 +264,37 @@ app.whenReady().then(async () => {
   })
 
   // Register custom protocol for serving local media files
+  // Standard and secure way to load local files in Electron
   protocol.handle('media', (request) => {
-    const url = request.url.replace('media://', '')
+    // 1. Strip 'media://' to get the raw path
+    let urlPath = request.url.replace('media://', '')
+
+    // 2. Decode URI component to handle spaces (%20) and other special characters
+    urlPath = decodeURIComponent(urlPath)
+
+    // 3. Handle path normalization based on OS
+    // On Windows, paths might look like /C:/Users/... or C:/Users/...
+    // On macOS/Linux, paths look like /Users/...
+    let finalPath = urlPath
+
+    if (process.platform === 'win32') {
+      // Remove leading slash if it precedes a drive letter (e.g., /C:/... -> C:/...)
+      if (finalPath.startsWith('/') && finalPath.includes(':')) {
+        finalPath = finalPath.slice(1)
+      }
+    } else {
+      // Ensure leading slash for POSIX paths (e.g., Users/... -> /Users/...)
+      if (!finalPath.startsWith('/')) {
+        finalPath = '/' + finalPath
+      }
+    }
+
+    // 4. Use net.fetch with file:// protocol
+    // pathToFileURL handles conversion to proper file URL (e.g., spaces -> %20, backslashes on windows)
     try {
-      return net.fetch('file://' + decodeURIComponent(url))
+      return net.fetch(pathToFileURL(finalPath).toString())
     } catch (error) {
-      console.error(error)
+      console.error('Failed to fetch media:', error)
       return new Response('Not Found', { status: 404 })
     }
   })

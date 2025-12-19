@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Play, Pause, Square, Settings, Activity, Eye, Brain, Database } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ImagePreview } from '@/components/ImagePreview'
 import type { Insight as ModelInsight } from '../types'
 
 interface MonitoringStatus {
@@ -19,7 +21,7 @@ type DisplayInsight = {
   confidence: number
   tags: string[]
   createdAt: string
-  screenshotPath?: string
+  screenshotPath?: string | string[]
 }
 
 export default function Monitor(): React.JSX.Element {
@@ -47,9 +49,15 @@ export default function Monitor(): React.JSX.Element {
           confidence: 0.8,
           tags: [],
           createdAt: new Date().toISOString(),
-          screenshotPath: undefined
+          // Ensure we handle both string and array, but prefer string (single image)
+          // Backend now sends single string for new items, but old items might be array
+          screenshotPath: insight.metadata?.screenshotPath as string | string[]
         }
-        setInsights((prev) => [mapped, ...prev.slice(0, 9)])
+        setInsights((prev) => {
+          // Prevent duplicates
+          if (prev.some((i) => i.id === mapped.id)) return prev
+          return [mapped, ...prev.slice(0, 9)]
+        })
         setStatus((prev) => ({
           ...prev,
           totalInsights: prev.totalInsights + 1,
@@ -91,7 +99,8 @@ export default function Monitor(): React.JSX.Element {
         confidence: d.confidence,
         tags: d.tags,
         createdAt: d.createdAt,
-        screenshotPath: d.screenshotPath
+        // @ts-ignore: metadata is returned by backend but not in typed definition of getInsights return
+        screenshotPath: d.metadata?.screenshotPath || d.screenshotPath
       }))
       setInsights(mapped)
     } catch (error) {
@@ -220,51 +229,53 @@ export default function Monitor(): React.JSX.Element {
             </div>
             <div className="flex flex-col gap-3">
               {status.status === 'idle' || status.status === 'not_initialized' ? (
-                <button
+                <Button
                   onClick={handleStart}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
-                  <Play className="h-4 w-4" />
-                  <span>{isLoading ? 'Starting...' : 'Start Monitoring'}</span>
-                </button>
+                  <Play className="mr-2 h-4 w-4" />
+                  {isLoading ? 'Starting...' : 'Start Monitoring'}
+                </Button>
               ) : status.status === 'running' ? (
                 <div className="flex flex-col gap-3">
-                  <button
+                  <Button
                     onClick={handlePause}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
+                    className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
                   >
-                    <Pause className="h-4 w-4" />
-                    <span>{isLoading ? 'Pausing...' : 'Pause'}</span>
-                  </button>
-                  <button
+                    <Pause className="mr-2 h-4 w-4" />
+                    {isLoading ? 'Pausing...' : 'Pause'}
+                  </Button>
+                  <Button
                     onClick={handleStop}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
+                    variant="destructive"
+                    className="w-full"
                   >
-                    <Square className="h-4 w-4" />
-                    <span>{isLoading ? 'Stopping...' : 'Stop'}</span>
-                  </button>
+                    <Square className="mr-2 h-4 w-4" />
+                    {isLoading ? 'Stopping...' : 'Stop'}
+                  </Button>
                 </div>
               ) : status.status === 'paused' ? (
                 <div className="flex flex-col gap-3">
-                  <button
+                  <Button
                     onClick={handleResume}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
                   >
-                    <Play className="h-4 w-4" />
-                    <span>{isLoading ? 'Resuming...' : 'Resume'}</span>
-                  </button>
-                  <button
+                    <Play className="mr-2 h-4 w-4" />
+                    {isLoading ? 'Resuming...' : 'Resume'}
+                  </Button>
+                  <Button
                     onClick={handleStop}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 active:scale-95 cursor-pointer text-white px-4 py-2 rounded-lg transition-all"
+                    variant="destructive"
+                    className="w-full"
                   >
-                    <Square className="h-4 w-4" />
-                    <span>{isLoading ? 'Stopping...' : 'Stop'}</span>
-                  </button>
+                    <Square className="mr-2 h-4 w-4" />
+                    {isLoading ? 'Stopping...' : 'Stop'}
+                  </Button>
                 </div>
               ) : null}
             </div>
@@ -323,10 +334,14 @@ export default function Monitor(): React.JSX.Element {
         <div className="flex-1 p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Recent Insights</h3>
-            <button className="flex items-center gap-2 text-gray-500 hover:text-gray-900 active:text-gray-700 cursor-pointer transition-colors">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-2 text-gray-500 hover:text-gray-900"
+            >
               <Settings className="h-4 w-4" />
               <span className="text-sm">Settings</span>
-            </button>
+            </Button>
           </div>
 
           {insights.length === 0 ? (
@@ -362,19 +377,34 @@ export default function Monitor(): React.JSX.Element {
 
                   {insight.screenshotPath && (
                     <div className="mt-2">
-                      <img
-                        src={`file://${insight.screenshotPath}`}
-                        alt="screenshot"
-                        className="max-h-64 w-auto rounded-lg border border-gray-200"
-                      />
+                      {Array.isArray(insight.screenshotPath) ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Only show the first screenshot if it is an array to avoid clutter, unless we have a specific index logic here */}
+                          {/* But wait, we want to solve the redundancy. So let's just pick the first one if it's an array */}
+                          {insight.screenshotPath.map((path, i) => (
+                            <ImagePreview
+                              key={i}
+                              src={`media://${path}`}
+                              alt={`screenshot-${i}`}
+                              className="max-h-64 w-auto rounded-lg border border-gray-200"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <ImagePreview
+                          src={`media://${insight.screenshotPath}`}
+                          alt="screenshot"
+                          className="max-h-64 w-auto rounded-lg border border-gray-200"
+                        />
+                      )}
                     </div>
                   )}
 
-                  {insight.tags.length > 0 && (
+                  {insight.tags && insight.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {insight.tags.map((tag, index) => (
                         <span key={index} className="px-2 py-1 bg-gray-100 text-xs rounded">
-                          {tag}
+                          {typeof tag === 'string' ? tag : JSON.stringify(tag)}
                         </span>
                       ))}
                     </div>

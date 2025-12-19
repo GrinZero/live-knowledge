@@ -903,6 +903,31 @@ export class DatabaseService {
         void 0
       }
 
+      // Parse insight metadata or default to empty object
+      // If screenshotPath was not found in knowledge item, try to find it in insight metadata (from MonitoringService injection)
+      // But primarily we want to ensure it is present.
+      // NOTE: MonitoringService now injects it into insight metadata on creation, but for old items or if we rely on relation:
+
+      // Let's get the insight's own metadata first
+      let insightMetadata: Record<string, unknown> = {}
+      try {
+        // row.metadata refers to i.metadata (since we did SELECT i.*)?
+        // Wait, i.* includes metadata, and ki.metadata is aliased as item_metadata.
+        // But if both tables have 'metadata' column, i.* might be tricky if not careful,
+        // but SQLite usually returns both or overwrites.
+        // However, we used SELECT i.*, ki.metadata as item_metadata.
+        // So row.metadata should be the insight's metadata.
+        // Let's double check if sqlite3 driver returns 'metadata' for i.metadata.
+        insightMetadata = row.metadata ? JSON.parse(String(row.metadata)) : {}
+      } catch {
+        insightMetadata = {}
+      }
+
+      // If we found a screenshot path from the parent item, ensure it's in the metadata we return
+      if (screenshotPath) {
+        insightMetadata.screenshotPath = screenshotPath
+      }
+
       return {
         id: String(row.id),
         knowledgeItemId: String(row.item_id),
@@ -914,7 +939,8 @@ export class DatabaseService {
         createdAt: String(row.created_at),
         itemTitle: String(row.item_title),
         itemType: String(row.item_type),
-        screenshotPath
+        metadata: insightMetadata, // Return the merged metadata
+        screenshotPath // Keep top level for compatibility if needed, though frontend uses metadata.screenshotPath
       }
     })
   }

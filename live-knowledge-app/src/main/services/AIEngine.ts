@@ -589,6 +589,7 @@ Please generate structured insights and suggestions in the following format:
       "title": "Insight Title",
       "content": "Detailed Content",
       "priority": "low|medium|high",
+      "relatedImageIndex": 0, // Index of the most relevant screenshot (0-based) from the provided frames
       "suggestedActions": [
         {
           "type": "create_task|add_calendar|save_note|send_notification",
@@ -605,7 +606,8 @@ Requirements:
 3. Suggested actions must be specific and actionable.
 4. Avoid repetition with recent insights.
 5. Consider context coherence.
-6. ALL OUTPUT MUST BE IN ENGLISH.
+6. Specify 'relatedImageIndex' (0-based) to point to the most relevant screenshot frame.
+7. ALL OUTPUT MUST BE IN ENGLISH.
       `
     }
 
@@ -627,6 +629,7 @@ ${JSON.stringify(recentInsights, null, 2)}
       "title": "洞察标题",
       "content": "详细内容",
       "priority": "low|medium|high",
+      "relatedImageIndex": 0, // 最相关的截图索引（从0开始）
       "suggestedActions": [
         {
           "type": "create_task|add_calendar|save_note|send_notification",
@@ -643,7 +646,8 @@ ${JSON.stringify(recentInsights, null, 2)}
 3. 建议操作要具体可行
 4. 避免与最近的洞察重复
 5. 考虑上下文连贯性
-6. 所有输出必须使用中文。
+6. 必须指定 'relatedImageIndex'（从0开始）以指向最相关的截图帧。
+7. 所有输出必须使用中文。
     `
   }
 
@@ -659,6 +663,7 @@ ${JSON.stringify(recentInsights, null, 2)}
       title?: string
       content?: string
       priority?: string
+      relatedImageIndex?: number
       suggestedActions?: AIResponseAction[]
     }
 
@@ -677,7 +682,8 @@ ${JSON.stringify(recentInsights, null, 2)}
       metadata: {
         generatedAt: new Date().toISOString(),
         confidence: 0.8,
-        source: 'ai_engine'
+        source: 'ai_engine',
+        relatedImageIndex: typeof insight.relatedImageIndex === 'number' ? insight.relatedImageIndex : 0
       }
     }))
   }
