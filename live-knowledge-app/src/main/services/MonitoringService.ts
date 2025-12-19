@@ -30,6 +30,10 @@ export class MonitoringService extends EventEmitter {
   private lastTriggerTime: number = 0
   private screenshotDir: string
   private userId: string = 'default_user' // TODO: Implement proper user authentication
+  private isContextCapturing: boolean = false
+  private contextWindowStartedAt: number = 0
+  private contextFrames: Array<{ screenshotPath: string; text: string; tags: Tag[] }> = []
+  private lastContextHash: string | null = null
 
   constructor(
     screenWatcher: ScreenWatcher,
@@ -157,22 +161,30 @@ export class MonitoringService extends EventEmitter {
   }
 
   private startMonitoringLoop(config: MonitorConfig): void {
-    const checkInterval = typeof config.captureInterval === 'number' ? config.captureInterval : 3000
-
-    this.monitoringInterval = setInterval(async () => {
+    const schedule = async () => {
       if (!this.isMonitoring || !this.currentSession) {
         return
       }
-
       try {
         await this.performScreenCheck(config)
       } catch (error) {
         console.error('Error during screen check:', error)
+      } finally {
+        const baseInterval =
+          typeof config.captureInterval === 'number' ? config.captureInterval : 15000
+        const nextInterval = this.isContextCapturing ? 5000 : baseInterval
+        this.monitoringInterval = setTimeout(schedule, nextInterval) as unknown as NodeJS.Timeout
       }
-    }, checkInterval)
+    }
+    void schedule()
   }
 
   private async performScreenCheck(config: MonitorConfig): Promise<void> {
+    if (this.isContextCapturing) {
+      await this.captureContextFrame(config)
+      return
+    }
+
     // Resolve trigger config with safe defaults
     const trigger = config.triggerConfig ?? {
       debounce: 500,
@@ -180,7 +192,6 @@ export class MonitoringService extends EventEmitter {
       similarityThreshold: 0.85
     }
     const throttleMs = typeof trigger.throttle === 'number' ? trigger.throttle : 2000
-    const debounceMs = typeof trigger.debounce === 'number' ? trigger.debounce : 500
 
     // Check throttle
     const now = Date.now()
@@ -199,41 +210,46 @@ export class MonitoringService extends EventEmitter {
 
     console.log(`Screen change detected (similarity: ${(1 - changeResult.similarity).toFixed(2)})`)
 
-    // Create debounce key based on content similarity
-    const debounceKey = `screen_check_${Math.round(changeResult.similarity * 100)}`
-
-    // Clear existing debounce timer for this key
-    if (this.debounceTimers.has(debounceKey)) {
-      clearTimeout(this.debounceTimers.get(debounceKey)!)
-    }
-
-    // Set new debounce timer
-    const debounceTimer = setTimeout(async () => {
-      try {
-        await this.processScreenChange(changeResult.screenshot)
-        this.debounceTimers.delete(debounceKey)
-      } catch (error) {
-        console.error('Error processing screen change:', error)
-        this.debounceTimers.delete(debounceKey)
-      }
-    }, debounceMs)
-
-    this.debounceTimers.set(debounceKey, debounceTimer)
+    // Start context capture window after initial change
+    this.beginContextCapture(changeResult.screenshot)
   }
 
-  private async processScreenChange(screenshot: Buffer): Promise<void> {
+  private async processAggregatedContext(frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>): Promise<void> {
     if (!this.currentSession) {
       return
     }
 
     try {
-      console.log('Processing screen change...')
+      console.log('Processing aggregated context...')
 
-      // Save screenshot
-      const screenshotPath = await this.saveScreenshot(screenshot)
+      if (frames.length === 0) {
+        console.log('No context frames captured')
+        return
+      }
 
-      // Analyze image (Text + Structured Content) using unified AI
-      const { text: extractedText, tags } = await this.contentAnalyzer.analyzeImage(screenshot)
+      const framesData = []
+      for (const f of frames) {
+        const buf = await fs.readFile(f.screenshotPath)
+        const base64 = buf.toString('base64')
+        framesData.push({ imageBase64: base64, text: f.text })
+      }
+      let aiResult: { text: string; tags: Tag[] } | null = null
+      try {
+        aiResult = await this.aiEngine.analyzeContextFrames(framesData)
+      } catch {
+        aiResult = null
+      }
+      let extractedText = ''
+      let tags: Tag[] = []
+      if (aiResult && (aiResult.text || (aiResult.tags && aiResult.tags.length > 0))) {
+        extractedText = aiResult.text || ''
+        tags = aiResult.tags || []
+      } else {
+        const aggregated = this.aggregateContextFrames(frames)
+        extractedText = aggregated.text
+        tags = aggregated.tags
+      }
+      const screenshotPath = frames[0].screenshotPath
 
       if (!extractedText.trim()) {
         console.log('No text found in screenshot')
@@ -277,7 +293,7 @@ export class MonitoringService extends EventEmitter {
       }
 
       // Create trigger event
-      await this.createTriggerEvent('screen_change', {
+      await this.createTriggerEvent('screen_context', {
         tags,
         insights,
         screenshotPath,
@@ -287,11 +303,115 @@ export class MonitoringService extends EventEmitter {
       // Update last trigger time
       this.lastTriggerTime = Date.now()
 
-      console.log(`Successfully processed screen change with ${insights.length} insights`)
+      console.log(`Successfully processed aggregated context with ${insights.length} insights`)
     } catch (error) {
-      console.error('Error processing screen change:', error)
+      console.error('Error processing aggregated context:', error)
       throw error
     }
+  }
+
+  private beginContextCapture(initialScreenshot: Buffer): void {
+    this.isContextCapturing = true
+    this.contextWindowStartedAt = Date.now()
+    this.contextFrames = []
+    // Push first frame
+    void this.pushFrame(initialScreenshot)
+    // End window will be decided by performScreenCheck calls
+  }
+
+  private async captureContextFrame(config: MonitorConfig): Promise<void> {
+    const cc = config.contextCapture ?? { durationMs: 6000, maxFrames: 5 }
+    const now = Date.now()
+    const elapsed = now - this.contextWindowStartedAt
+
+    // Capture additional frame unconditionally (no similarity gating)
+    try {
+      const frame = await this.screenWatcher.captureScreen()
+      await this.pushFrame(frame)
+    } catch (error) {
+      console.error('Failed to capture context frame:', error)
+    }
+
+    const reachedDuration = elapsed >= cc.durationMs
+    const reachedMax = this.contextFrames.length >= cc.maxFrames
+    if (reachedDuration || reachedMax) {
+      const framesSnapshot = [...this.contextFrames]
+      this.isContextCapturing = false
+      // Process aggregated frames
+      await this.processAggregatedContext(framesSnapshot)
+      this.contextFrames = []
+    }
+  }
+
+  private async pushFrame(screenshot: Buffer): Promise<void> {
+    try {
+      const hash = await this.screenWatcher.computeHash(screenshot)
+      if (this.lastContextHash && hash === this.lastContextHash) {
+        return
+      }
+      this.lastContextHash = hash
+    } catch {
+      void 0
+    }
+    const screenshotPath = await this.saveScreenshot(screenshot)
+    const { text, tags } = await this.contentAnalyzer.analyzeImage(screenshot)
+    this.contextFrames.push({ screenshotPath, text, tags })
+  }
+
+  private aggregateContextFrames(frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>): {
+    text: string
+    tags: Tag[]
+    primaryScreenshotPath: string
+  } {
+    const primaryScreenshotPath = frames[0]?.screenshotPath ?? ''
+    // Merge text with line-level dedupe
+    const linesSet = new Set<string>()
+    for (const f of frames) {
+      f.text
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0)
+        .forEach((l) => linesSet.add(l))
+    }
+    const text = Array.from(linesSet).join('\n')
+
+    // Merge tags by type+title key, keep highest confidence, merge metadata
+    const tagMap = new Map<string, Tag>()
+    for (const f of frames) {
+      for (const t of f.tags) {
+        const key = `${t.type}:${t.title}`.toLowerCase()
+        if (!tagMap.has(key)) {
+          tagMap.set(key, { ...t })
+        } else {
+          const existing = tagMap.get(key)!
+          const merged: Tag = {
+            ...existing,
+            confidence: Math.max(existing.confidence, t.confidence),
+            metadata: this.mergeMetadata(existing.metadata, t.metadata)
+          }
+          tagMap.set(key, merged)
+        }
+      }
+    }
+
+    const tags = Array.from(tagMap.values())
+    return { text, tags, primaryScreenshotPath }
+  }
+
+  private mergeMetadata(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...a }
+    for (const [k, v] of Object.entries(b)) {
+      const ov = out[k]
+      if (Array.isArray(ov) && Array.isArray(v)) {
+        const set = new Set([...ov, ...v])
+        out[k] = Array.from(set)
+      } else if (typeof ov === 'object' && ov && typeof v === 'object' && v) {
+        out[k] = { ...(ov as Record<string, unknown>), ...(v as Record<string, unknown>) }
+      } else {
+        out[k] = v
+      }
+    }
+    return out
   }
 
   private async saveScreenshot(screenshot: Buffer): Promise<string> {

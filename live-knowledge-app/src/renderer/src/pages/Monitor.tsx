@@ -110,7 +110,11 @@ export default function Monitor(): React.JSX.Element {
           throttle: 2000,
           similarityThreshold: 0.85
         },
-        captureInterval: 2000
+        captureInterval: 15000,
+        contextCapture: {
+          durationMs: 6000,
+          maxFrames: 5
+        }
       }
       await window.api.monitoring.start(config)
     } catch (error) {

@@ -6,6 +6,12 @@ export class ContentAnalyzer {
   private tesseractWorker: Worker | null = null
   private isWorkerInitialized: boolean = false
   private aiEngine: AIEngine | null = null
+  private analysisQueue: Array<{
+    buffer: Buffer
+    resolve: (value: { text: string; tags: Tag[] }) => void
+    reject: (reason?: unknown) => void
+  }> = []
+  private isQueueRunning: boolean = false
 
   constructor(aiEngine?: AIEngine) {
     if (aiEngine) {
@@ -32,12 +38,34 @@ export class ContentAnalyzer {
   }
 
   async analyzeImage(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
-    // Priority: Unified AI Image Analysis
+    return new Promise<{ text: string; tags: Tag[] }>((resolve, reject) => {
+      this.analysisQueue.push({ buffer: imageBuffer, resolve, reject })
+      void this.runQueue()
+    })
+  }
+
+  private async runQueue(): Promise<void> {
+    if (this.isQueueRunning) return
+    this.isQueueRunning = true
+    try {
+      while (this.analysisQueue.length > 0) {
+        const task = this.analysisQueue.shift()!
+        try {
+          const result = await this.performImageAnalysis(task.buffer)
+          task.resolve(result)
+        } catch (err) {
+          task.reject(err)
+        }
+      }
+    } finally {
+      this.isQueueRunning = false
+    }
+  }
+
+  private async performImageAnalysis(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
     if (this.aiEngine) {
       try {
-        console.log('Attempting AI image analysis...')
         const result = await this.aiEngine.analyzeImage(imageBuffer)
-        // If we got meaningful result, return it
         if (result.text && result.text.length > 5) {
           return result
         }
@@ -45,9 +73,6 @@ export class ContentAnalyzer {
         console.warn('AI image analysis failed, falling back to local OCR pipeline:', error)
       }
     }
-
-    // Fallback: Local OCR + Text Analysis
-    console.log('Using fallback OCR pipeline')
     const text = await this.extractTextFromImage(imageBuffer)
     const tags = await this.extractStructuredContent(text)
     return { text, tags }

@@ -35,37 +35,146 @@ export class AIEngine {
     this.contextStore = new ContextMemory()
   }
 
+  async analyzeContextFrames(
+    frames: Array<{ imageBase64: string; text?: string }>
+  ): Promise<{ text: string; tags: Tag[] }> {
+    if (!this.isEnabled) {
+      return { text: '', tags: [] }
+    }
+    const langInstruction =
+      this.language === 'zh'
+        ? '输出必须使用中文。融合多帧图像与文本，进行场景理解与实体合并，避免重复。'
+        : 'Output must be in English. Fuse multi-frame images and text, perform scene understanding and entity merging, avoid duplicates.'
+    const prompt = `
+      You receive multiple consecutive frames of a screen with optional text for each frame.
+      Perform temporal scene understanding:
+      1) Infer the ongoing activity, intent and apps across frames.
+      2) Merge entities and deduplicate across frames.
+      3) Produce concise scene summary and unified tags.
+      ${langInstruction}
+      Return ONLY valid JSON with:
+      {
+        "text": "scene summary",
+        "tags": [
+          {
+            "type": "meeting_schedule|task_todo|topic_discussion|data_table|problem_solving|insight_context",
+            "title": "Short descriptive title",
+            "content": "Key evidence from frames",
+            "confidence": 0.0-1.0,
+            "metadata": {
+              "apps": string[]|null,
+              "activity": string|null,
+              "intent": string|null,
+              "time": string|null,
+              "participants": string[]|null,
+              "priority": "low|medium|high"|null,
+              "extra": Record<string, unknown>
+            }
+          }
+        ]
+      }
+    `
+    try {
+      let resultJson: { text?: string; tags?: unknown[] } | null = null
+      if (this.provider === 'gemini' && this.gemini) {
+        const model = this.gemini.getGenerativeModel({ model: this.modelName })
+        const parts: Array<unknown> = [prompt]
+        for (const [idx, f] of frames.entries()) {
+          parts.push({
+            inlineData: {
+              data: f.imageBase64,
+              mimeType: 'image/png'
+            }
+          })
+          if (f.text) {
+            parts.push(`Frame ${idx + 1} text: ${f.text.slice(0, 1000)}`)
+          }
+        }
+        const response = await model.generateContent(parts as Array<string | { inlineData: { data: string; mimeType: string } }>)
+        const text = await response.response.text()
+        resultJson = this.parseJsonSafe(text)
+      } else if (this.provider === 'openai' && this.openai) {
+        const userContent: Array<
+          | { type: 'text'; text: string }
+          | { type: 'image_url'; image_url: { url: string } }
+        > = [{ type: 'text', text: prompt }]
+        frames.forEach((f, idx) => {
+          if (f.text) {
+            userContent.push({ type: 'text', text: `Frame ${idx + 1} text: ${f.text.slice(0, 1000)}` })
+          }
+          userContent.push({
+            type: 'image_url',
+            image_url: { url: `data:image/png;base64,${f.imageBase64}` }
+          })
+        })
+        const response = await this.openai.chat.completions.create({
+          model: this.modelName,
+          messages: [
+            { role: 'system', content: 'You are a visual-temporal analysis engine. Output valid JSON only.' },
+            { role: 'user', content: userContent as unknown as string }
+          ],
+          max_tokens: 2000,
+          response_format: { type: 'json_object' }
+        })
+        resultJson = this.parseJsonSafe(response.choices[0].message.content ?? '{}')
+      }
+      const text = resultJson?.text || ''
+      const tags =
+        (resultJson?.tags as Record<string, unknown>[])?.map((t) => ({
+          id: uuidv4(),
+          type: (t.type as Tag['type']) || 'insight_context',
+          title: (t.title as string) || 'Untitled',
+          content: (t.content as string) || '',
+          metadata: (t.metadata as Record<string, unknown>) || {},
+          timestamp: new Date().toISOString(),
+          confidence: (t.confidence as number) || 0.8
+        })) || []
+      return { text, tags }
+    } catch (error) {
+      console.error('AI Multimodal Context Analysis failed:', error)
+      return { text: '', tags: [] }
+    }
+  }
   async analyzeImage(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
     if (!this.isEnabled) {
+      console.warn('AI Image Analysis is disabled')
       return { text: '', tags: [] }
     }
 
     const base64Image = imageBuffer.toString('base64')
     const langInstruction =
       this.language === 'zh'
-        ? 'Ensure all extracted titles and content descriptions are in Chinese.'
-        : 'Ensure all extracted titles and content descriptions are in English.'
+        ? '输出必须使用中文。聚焦对用户当前场景与活动的理解，不必逐字转写。'
+        : 'Output must be in English. Focus on understanding the user’s current scene and activity; do not transcribe verbatim.'
 
     const prompt = `
-      Analyze the provided screen image.
-      1. Transcribe all visible text accurately.
-      2. Identify and extract structured knowledge items (tags) from the visual content.
+      You are a screen scene-understanding agent.
+      1) Infer what the user is doing now (activity, intent, apps).
+      2) Summarize the scene concisely.
+      3) Extract structured tags aligned to the schema below.
       ${langInstruction}
 
-      Return a JSON object with this structure:
+      Return ONLY valid JSON in this schema:
       {
-        "text": "Full text transcription of the image",
+        "text": "Concise scene summary focusing on user activity",
         "tags": [
           {
             "type": "meeting_schedule|task_todo|topic_discussion|data_table|problem_solving|insight_context",
             "title": "Short descriptive title",
-            "content": "Relevant text or description",
+            "content": "Key context or salient text from the scene",
             "confidence": 0.0-1.0,
-            "metadata": { ... }
+            "metadata": {
+              "apps": string[],
+              "activity": string,
+              "intent": string,
+              "time": string|null,
+              "participants": string[]|null,
+              "priority": "low|medium|high"|null,
+              "extra": Record<string, unknown>
+            }
           }
         ]
       }
-      Return ONLY valid JSON.
     `
 
     try {
@@ -87,8 +196,7 @@ export class AIEngine {
 
         const response = await model.generateContent([prompt, imagePart])
         const text = await response.response.text()
-        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '')
-        resultJson = JSON.parse(cleanedText)
+        resultJson = this.parseJsonSafe(text)
       } else if (this.provider === 'openai' && this.openai) {
         const response = await this.openai.chat.completions.create({
           model: this.modelName, // Must be gpt-4o, gpt-4-turbo, etc.
@@ -113,7 +221,7 @@ export class AIEngine {
           max_tokens: 2000,
           response_format: { type: 'json_object' }
         })
-        resultJson = JSON.parse(response.choices[0].message.content ?? '{}')
+        resultJson = this.parseJsonSafe(response.choices[0].message.content ?? '{}')
       }
 
       const text = resultJson?.text || ''
@@ -265,26 +373,36 @@ export class AIEngine {
 
     const langInstruction =
       this.language === 'zh'
-        ? 'Ensure all extracted titles and content descriptions are in Chinese.'
-        : 'Ensure all extracted titles and content descriptions are in English.'
+        ? '输出必须使用中文。关注用户正在进行的场景、活动和意图。'
+        : 'Output must be in English. Focus on user scene, activity and intent.'
 
     const prompt = `
-      Analyze the following text extracted from a screen and identify structured knowledge items.
-
-      Text Content:
+      You are a semantic scene analyzer.
+      Text:
       "${text.slice(0, 2000)}"
 
-      Extract items into a JSON array of objects with this structure:
+      Extract tags aligned to this schema:
       {
-        "type": "meeting|task|schedule|problem|data|idea",
-        "title": "Short descriptive title",
-        "content": "The relevant text segment",
-        "confidence": 0.0-1.0,
-        "metadata": { ...specific fields like time, participants, priority... }
+        "tags": [
+          {
+            "type": "meeting_schedule|task_todo|topic_discussion|data_table|problem_solving|insight_context",
+            "title": "Short descriptive title",
+            "content": "Key segment supporting the tag",
+            "confidence": 0.0-1.0,
+            "metadata": {
+              "apps": string[]|null,
+              "activity": string|null,
+              "intent": string|null,
+              "time": string|null,
+              "participants": string[]|null,
+              "priority": "low|medium|high"|null,
+              "extra": Record<string, unknown>
+            }
+          }
+        ]
       }
       ${langInstruction}
-
-      Return ONLY the JSON object with a key "tags" containing the array.
+      Return ONLY valid JSON.
     `
 
     try {
@@ -294,8 +412,7 @@ export class AIEngine {
         const model = this.gemini.getGenerativeModel({ model: this.modelName })
         const response = await model.generateContent(prompt)
         const text = await response.response.text()
-        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '')
-        resultJson = JSON.parse(cleanedText)
+        resultJson = this.parseJsonSafe(text)
       } else if (this.provider === 'openai' && this.openai) {
         const response = await this.openai.chat.completions.create({
           model: this.modelName,
@@ -309,7 +426,7 @@ export class AIEngine {
           temperature: 0.1,
           response_format: { type: 'json_object' }
         })
-        resultJson = JSON.parse(response.choices[0].message.content ?? '{}')
+        resultJson = this.parseJsonSafe(response.choices[0].message.content ?? '{}')
       }
 
       if (resultJson && Array.isArray(resultJson.tags)) {
@@ -317,7 +434,7 @@ export class AIEngine {
           const t = tag as Record<string, unknown>
           return {
             id: uuidv4(),
-            type: (t.type as Tag['type']) || 'note',
+            type: (t.type as Tag['type']) || 'insight_context',
             title: (t.title as string) || 'Untitled',
             content: (t.content as string) || '',
             metadata: (t.metadata as Record<string, unknown>) || {},
@@ -330,6 +447,23 @@ export class AIEngine {
     } catch (error) {
       console.error('AI Analysis failed:', error)
       return []
+    }
+  }
+
+  private parseJsonSafe(text: string): Record<string, unknown> {
+    try {
+      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim()
+      return JSON.parse(cleaned)
+    } catch {
+      try {
+        const start = text.indexOf('{')
+        const end = text.lastIndexOf('}')
+        if (start >= 0 && end > start) {
+          const slice = text.slice(start, end + 1)
+          return JSON.parse(slice)
+        }
+      } catch { void 0 }
+      return {}
     }
   }
 

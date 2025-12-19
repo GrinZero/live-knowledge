@@ -167,6 +167,10 @@ export class ScreenWatcher {
     return distance
   }
 
+  async computeHash(imageBuffer: Buffer): Promise<string> {
+    return await this.calculatePerceptualHash(imageBuffer)
+  }
+
   setCaptureRegion(region?: Rectangle): void {
     this.captureRegion = region
   }

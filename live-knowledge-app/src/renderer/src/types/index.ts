@@ -74,6 +74,10 @@ export interface MonitorConfig {
   }
   captureInterval?: number
   language?: 'zh' | 'en'
+  contextCapture?: {
+    durationMs: number
+    maxFrames: number
+  }
 }
 
 export interface Screenshot {
