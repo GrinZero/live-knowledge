@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Plug, Plus } from 'lucide-react'
+import { Plug, Plus, Settings } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
 
 interface Plugin {
   id: string
@@ -8,11 +16,14 @@ interface Plugin {
   version: string
   description: string
   enabled: boolean
+  config?: Record<string, unknown>
 }
 
 export default function Plugins(): React.JSX.Element {
   const [plugins, setPlugins] = useState<Plugin[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
+  const [configJson, setConfigJson] = useState('')
 
   const loadPlugins = async () => {
     setLoading(true)
@@ -36,6 +47,24 @@ export default function Plugins(): React.JSX.Element {
       loadPlugins()
     } catch (error) {
       console.error('Failed to toggle plugin:', error)
+    }
+  }
+
+  const openConfig = (plugin: Plugin) => {
+    setSelectedPlugin(plugin)
+    setConfigJson(JSON.stringify(plugin.config || {}, null, 2))
+  }
+
+  const saveConfig = async () => {
+    if (!selectedPlugin) return
+    try {
+      const config = JSON.parse(configJson)
+      await apiClient.plugins.updateConfig(selectedPlugin.id, config)
+      loadPlugins()
+      setSelectedPlugin(null)
+    } catch (error) {
+      console.error('Failed to update config:', error)
+      alert('Update failed: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
 
@@ -83,6 +112,13 @@ export default function Plugins(): React.JSX.Element {
                 </div>
                 <div className="flex items-center gap-4">
                   <button
+                    onClick={() => openConfig(plugin)}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                    title="Configure"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={() => togglePlugin(plugin.id, !plugin.enabled)}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       plugin.enabled ? 'bg-blue-600' : 'bg-gray-200'
@@ -100,6 +136,29 @@ export default function Plugins(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      <Dialog open={!!selectedPlugin} onOpenChange={(open) => !open && setSelectedPlugin(null)}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>配置插件: {selectedPlugin?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="mb-2 text-sm text-gray-500">JSON 配置:</p>
+            <textarea
+              className="w-full h-96 font-mono text-sm p-4 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              value={configJson}
+              onChange={(e) => setConfigJson(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedPlugin(null)}>
+              取消
+            </Button>
+            <Button onClick={saveConfig}>保存配置</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

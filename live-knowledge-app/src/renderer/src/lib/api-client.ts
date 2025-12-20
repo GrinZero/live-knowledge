@@ -108,12 +108,26 @@ export const apiClient = {
       })
       if (!res.ok) throw new Error('Failed to toggle plugin')
       return res.json()
+    },
+    updateConfig: async (id: string, config: Record<string, unknown>) => {
+      const res = await fetch(`${BASE_URL}/plugins/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, config })
+      })
+      if (!res.ok) throw new Error('Failed to update plugin config')
+      return res.json()
     }
   },
   solver: {
     getContext: async (id: string) => {
       const res = await fetch(`${BASE_URL}/plugins/problem-solver/context?id=${id}`)
       if (!res.ok) throw new Error('Failed to fetch solver context')
+      return res.json()
+    },
+    getHistory: async () => {
+      const res = await fetch(`${BASE_URL}/plugins/problem-solver/history`)
+      if (!res.ok) throw new Error('Failed to fetch solver history')
       return res.json()
     },
     generateStream: async (

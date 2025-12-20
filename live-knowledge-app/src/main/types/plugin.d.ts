@@ -1,6 +1,7 @@
 import { Action } from '../../renderer/src/types'
 import { IpcMainInvokeEvent } from 'electron'
 import { Router } from 'express'
+import { DatabaseService } from '../services/DatabaseService'
 
 export interface PluginContext {
   ai: {
@@ -13,12 +14,13 @@ export interface PluginContext {
   ipc: {
     handle: (
       channel: string,
-      listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<void> | any
+      listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<void> | unknown
     ) => void
   }
   http: {
     router: Router
   }
+  database: DatabaseService
 }
 
 export interface LiveKnowledgePlugin {
@@ -26,6 +28,11 @@ export interface LiveKnowledgePlugin {
   name: string
   version: string
   description?: string
+
+  // Configuration
+  defaultConfig?: Record<string, unknown>
+  config?: Record<string, unknown>
+  onConfigUpdated?: (newConfig: Record<string, unknown>) => void
 
   // Initialization Phase: Receive dependencies and register backend handlers
   initialize?: (context: PluginContext) => void

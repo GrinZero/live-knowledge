@@ -120,7 +120,7 @@ async function initializeServices(): Promise<void> {
     console.log('Presentation service initialized')
 
     // Initialize plugin manager
-    pluginManager = new PluginManager(aiEngine)
+    pluginManager = new PluginManager(aiEngine, databaseService)
 
     // Register default plugins
     pluginManager.registerPlugin(new DevToolsPlugin())
@@ -278,6 +278,12 @@ function setupIpcHandlers(): void {
   ipcMain.handle('plugins:toggle', async (_, id: string, enabled: boolean) => {
     if (!pluginManager) throw new Error('Plugin manager not initialized')
     pluginManager.togglePlugin(id, enabled)
+    return true
+  })
+
+  ipcMain.handle('plugins:updateConfig', async (_, id: string, config: Record<string, unknown>) => {
+    if (!pluginManager) throw new Error('Plugin manager not initialized')
+    pluginManager.updatePluginConfig(id, config)
     return true
   })
 

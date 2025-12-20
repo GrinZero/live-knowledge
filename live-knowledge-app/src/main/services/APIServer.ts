@@ -442,6 +442,18 @@ export class APIServer {
       }
     })
 
+    this.app.post('/api/plugins/config', async (req: express.Request, res: express.Response) => {
+      try {
+        const { id, config } = req.body
+        this.pluginManager.updatePluginConfig(id, config)
+        res.json({ success: true })
+      } catch (error) {
+        res
+          .status(400)
+          .json({ error: 'Failed to update plugin config', message: (error as Error).message })
+      }
+    })
+
     // Mount plugin routers dynamically
     // Note: In a real hot-reloading scenario, we'd need to handle updates.
     // For now, we assume plugins are registered before server start or we mount them here.

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { LiveKnowledgePlugin, PluginContext } from '../types/plugin'
 import { Action } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
+import { DatabaseService } from './DatabaseService'
 import { ipcMain } from 'electron'
 import { Router } from 'express'
 
@@ -9,12 +10,14 @@ export class PluginManager extends EventEmitter {
   private plugins: Map<string, LiveKnowledgePlugin> = new Map()
   private enabledPlugins: Set<string> = new Set()
   private aiEngine: AIEngine
+  private databaseService: DatabaseService
   // Map to store routers for each plugin
   public pluginRouters: Map<string, Router> = new Map()
 
-  constructor(aiEngine: AIEngine) {
+  constructor(aiEngine: AIEngine, databaseService: DatabaseService) {
     super()
     this.aiEngine = aiEngine
+    this.databaseService = databaseService
   }
 
   public registerPlugin(plugin: LiveKnowledgePlugin): void {
@@ -23,6 +26,11 @@ export class PluginManager extends EventEmitter {
     }
     this.plugins.set(plugin.id, plugin)
     this.enabledPlugins.add(plugin.id) // Enable by default
+
+    // Initialize config from plugin default
+    if (plugin.defaultConfig) {
+      plugin.config = { ...plugin.defaultConfig }
+    }
 
     // Create a new router for this plugin
     const router = Router()
@@ -41,7 +49,8 @@ export class PluginManager extends EventEmitter {
         },
         http: {
           router: router
-        }
+        },
+        database: this.databaseService
       }
       try {
         plugin.initialize(context)
@@ -52,6 +61,22 @@ export class PluginManager extends EventEmitter {
     }
 
     console.log(`Plugin registered: ${plugin.name} (${plugin.version})`)
+  }
+
+  public updatePluginConfig(pluginId: string, config: Record<string, unknown>): void {
+    const plugin = this.plugins.get(pluginId)
+    if (!plugin) return
+
+    plugin.config = { ...plugin.config, ...config }
+
+    if (plugin.onConfigUpdated) {
+      try {
+        plugin.onConfigUpdated(plugin.config)
+      } catch (error) {
+        console.error(`Error updating config for plugin ${plugin.name}:`, error)
+      }
+    }
+    console.log(`Plugin ${pluginId} config updated`)
   }
 
   public togglePlugin(pluginId: string, enabled: boolean): void {
@@ -69,13 +94,15 @@ export class PluginManager extends EventEmitter {
     version: string
     description: string
     enabled: boolean
+    config?: Record<string, unknown>
   }> {
     return Array.from(this.plugins.values()).map((p) => ({
       id: p.id,
       name: p.name,
       version: p.version,
       description: p.description || '',
-      enabled: this.enabledPlugins.has(p.id)
+      enabled: this.enabledPlugins.has(p.id),
+      config: p.config
     }))
   }
 
