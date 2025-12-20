@@ -85,6 +85,10 @@ declare global {
           proxyUrl?: string
         }) => Promise<string[]>
       }
+      plugins: {
+        list: () => Promise<Array<{ id: string; name: string; version: string; description: string; enabled: boolean }>>
+        toggle: (id: string, enabled: boolean) => Promise<boolean>
+      }
     }
   }
 }

@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, BookOpen, Settings, History, PanelsTopLeft } from 'lucide-react'
+import { Activity, LayoutDashboard, BookOpen, Settings, History, PanelsTopLeft, Plug } from 'lucide-react'
 import type React from 'react'
 
 const navItems = [
   { path: '/', label: '监控', icon: Activity },
   { path: '/dashboard', label: '展示', icon: LayoutDashboard },
   { path: '/history', label: '历史', icon: History },
+  { path: '/plugins', label: '插件', icon: Plug },
   { path: '/overlay', label: '悬浮窗', icon: PanelsTopLeft },
   { path: '/settings', label: '设置', icon: Settings }
 ]

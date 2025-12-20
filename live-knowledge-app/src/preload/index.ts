@@ -61,6 +61,12 @@ const api = {
     }) => ipcRenderer.invoke('settings:saveAIConfig', config),
     fetchModels: (config: { apiKey: string; provider: string; proxyUrl?: string }) =>
       ipcRenderer.invoke('settings:fetchModels', config)
+  },
+
+  // Plugin APIs
+  plugins: {
+    list: () => ipcRenderer.invoke('plugins:list'),
+    toggle: (id: string, enabled: boolean) => ipcRenderer.invoke('plugins:toggle', id, enabled)
   }
 }
 

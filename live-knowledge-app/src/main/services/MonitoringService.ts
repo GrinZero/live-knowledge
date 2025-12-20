@@ -17,12 +17,15 @@ import path from 'path'
 import fs from 'fs/promises'
 import { EventEmitter } from 'events'
 
+import { PluginManager } from './PluginManager'
+
 export class MonitoringService extends EventEmitter {
   private screenWatcher: ScreenWatcher
   private contentAnalyzer: ContentAnalyzer
   private aiEngine: AIEngine
   private database: DatabaseService
   private presentationService: PresentationService
+  private pluginManager: PluginManager
   private currentSession: MonitoringSession | null = null
   private isMonitoring: boolean = false
   private monitoringInterval: NodeJS.Timeout | null = null
@@ -40,7 +43,8 @@ export class MonitoringService extends EventEmitter {
     contentAnalyzer: ContentAnalyzer,
     aiEngine: AIEngine,
     database: DatabaseService,
-    presentationService: PresentationService
+    presentationService: PresentationService,
+    pluginManager: PluginManager
   ) {
     super()
     // Use app.getPath('userData')/screenshots to persist across restarts
@@ -51,6 +55,7 @@ export class MonitoringService extends EventEmitter {
     this.aiEngine = aiEngine
     this.database = database
     this.presentationService = presentationService
+    this.pluginManager = pluginManager
 
     this.initialize()
   }
@@ -273,10 +278,23 @@ export class MonitoringService extends EventEmitter {
 
       // Generate insights using AI
       const context = await this.buildContext()
-      const insights = await this.aiEngine.generateInsights(tags, context)
+      // Gather extra context from plugins
+      const pluginContext = await this.pluginManager.getContexts()
+      // Get prompt additions from plugins
+      const pluginPromptAdditions = await this.pluginManager.getPromptAdditions(context.session)
+
+      const insights = await this.aiEngine.generateInsights(tags, context, pluginContext, pluginPromptAdditions)
 
       // Store insights and present them
       for (const insight of insights) {
+        // Execute plugin actions for each insight
+        if (insight.suggestedActions) {
+          for (const action of insight.suggestedActions) {
+            // Try to execute via plugins first
+            await this.pluginManager.executeAction(action)
+          }
+        }
+
         // Inject screenshot path into metadata
         // Use the relatedImageIndex from AI to pick the most relevant screenshot
         // Fallback to first screenshot if index is invalid or missing

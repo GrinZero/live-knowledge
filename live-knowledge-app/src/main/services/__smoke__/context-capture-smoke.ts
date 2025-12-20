@@ -118,13 +118,22 @@ class MockPresentation {
   async showInsight(): Promise<void> { return }
 }
 
+import { PluginManager } from '../PluginManager'
+
+class MockPluginManager extends EventEmitter {
+  async getContexts(): Promise<Record<string, unknown>> { return {} }
+  async getPromptAdditions(): Promise<string> { return '' }
+  async executeAction(): Promise<boolean> { return false }
+}
+
 async function run() {
   const screen = new MockScreenWatcher() as unknown as ScreenWatcher
   const analyzer = new MockContentAnalyzer() as unknown as ContentAnalyzer
   const ai = new MockAIEngine() as unknown as AIEngine
   const db = new MockDatabase() as unknown as DatabaseService
   const pres = new MockPresentation() as unknown as PresentationService
-  const svc = new MonitoringService(screen, analyzer, ai, db, pres)
+  const pm = new MockPluginManager() as unknown as PluginManager
+  const svc = new MonitoringService(screen, analyzer, ai, db, pres, pm)
   const session = await svc.startMonitoring({
     mode: 'full',
     triggerConfig: { debounce: 200, throttle: 500, similarityThreshold: 0.85 },

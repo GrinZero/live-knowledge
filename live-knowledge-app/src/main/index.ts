@@ -10,6 +10,9 @@ import { ScreenWatcher } from './services/ScreenWatcher'
 import { ContentAnalyzer } from './services/ContentAnalyzer'
 import { PresentationService } from './services/PresentationService'
 import { APIServer } from './services/APIServer'
+import { PluginManager } from './services/PluginManager'
+import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
+import { ProblemSolverPlugin } from './services/plugins/ProblemSolverPlugin'
 import { pathToFileURL } from 'url'
 
 // Inject system proxy settings if provided in env
@@ -24,6 +27,7 @@ let databaseService: DatabaseService | null = null
 let presentationService: PresentationService | null = null
 let apiServer: APIServer | null = null
 let aiEngine: AIEngine | null = null
+let pluginManager: PluginManager | null = null
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -114,13 +118,23 @@ async function initializeServices(): Promise<void> {
     presentationService = new PresentationService()
     console.log('Presentation service initialized')
 
+    // Initialize plugin manager
+    pluginManager = new PluginManager(aiEngine)
+
+    // Register default plugins
+    pluginManager.registerPlugin(new DevToolsPlugin())
+    pluginManager.registerPlugin(new ProblemSolverPlugin())
+
+    console.log('Plugin manager initialized')
+
     // Initialize monitoring service
     monitoringService = new MonitoringService(
       screenWatcher,
       contentAnalyzer,
       aiEngine,
       databaseService,
-      presentationService
+      presentationService,
+      pluginManager
     )
     console.log('Monitoring service initialized')
 
@@ -243,6 +257,18 @@ function setupIpcHandlers(): void {
   ipcMain.handle('db:getUserStats', async (_, userId: string) => {
     if (!databaseService) throw new Error('Database service not initialized')
     return await databaseService.getUserStatistics(userId)
+  })
+
+  // Plugin Management IPC
+  ipcMain.handle('plugins:list', async () => {
+    if (!pluginManager) return []
+    return pluginManager.getPluginStatus()
+  })
+
+  ipcMain.handle('plugins:toggle', async (_, id: string, enabled: boolean) => {
+    if (!pluginManager) throw new Error('Plugin manager not initialized')
+    pluginManager.togglePlugin(id, enabled)
+    return true
   })
 
   // IPC test
