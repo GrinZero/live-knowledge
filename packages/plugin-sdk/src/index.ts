@@ -103,6 +103,7 @@ export interface LiveKnowledgePlugin {
   // Configuration
   defaultConfig?: Record<string, unknown>
   config?: Record<string, unknown>
+  configSchema?: Record<string, unknown>
   onConfigUpdated?: (newConfig: Record<string, unknown>) => void
 
   // Initialization Phase
@@ -117,5 +118,8 @@ export interface LiveKnowledgePlugin {
 
     // Output Phase
     onAction?: (action: Action) => Promise<boolean>
+    
+    // Event Phase
+    onEvent?: (event: string, payload: Record<string, unknown>) => Promise<void>
   }
 }

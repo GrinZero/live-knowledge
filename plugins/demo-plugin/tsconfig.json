@@ -1,9 +1,0 @@
-{
-  "extends": "../../apps/desktop/tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": false
-  },
-  "include": ["src/**/*"]
-}

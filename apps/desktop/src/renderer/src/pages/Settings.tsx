@@ -41,30 +41,48 @@ export default function Settings(): React.JSX.Element {
     // Update defaults or restore from cache when provider changes
     if (aiConfig.provider === 'openai') {
       const cached = providerCache['openai']
-      setAiConfig((prev) => ({
-        ...prev,
-        apiKey: cached?.apiKey || '',
-        model: cached?.model || 'gpt-4.1',
-        baseUrl: cached?.baseUrl || ''
-      }))
+      if (
+        cached?.apiKey !== aiConfig.apiKey ||
+        cached?.model !== aiConfig.model ||
+        cached?.baseUrl !== aiConfig.baseUrl
+      ) {
+        setAiConfig((prev) => ({
+          ...prev,
+          apiKey: cached?.apiKey || '',
+          model: cached?.model || 'gpt-4.1',
+          baseUrl: cached?.baseUrl || ''
+        }))
+      }
     } else if (aiConfig.provider === 'gemini') {
       const cached = providerCache['gemini']
-      setAiConfig((prev) => ({
-        ...prev,
-        apiKey: cached?.apiKey || '',
-        model: cached?.model || 'gemini-2.5-flash',
-        baseUrl: ''
-      }))
+      if (
+        cached?.apiKey !== aiConfig.apiKey ||
+        cached?.model !== aiConfig.model ||
+        cached?.baseUrl !== aiConfig.baseUrl
+      ) {
+        setAiConfig((prev) => ({
+          ...prev,
+          apiKey: cached?.apiKey || '',
+          model: cached?.model || 'gemini-2.5-flash',
+          baseUrl: ''
+        }))
+      }
     } else if (aiConfig.provider === 'custom') {
       const cached = providerCache['custom']
-      setAiConfig((prev) => ({
-        ...prev,
-        apiKey: cached?.apiKey || '',
-        model: cached?.model || '',
-        baseUrl: cached?.baseUrl || ''
-      }))
+      if (
+        cached?.apiKey !== aiConfig.apiKey ||
+        cached?.model !== aiConfig.model ||
+        cached?.baseUrl !== aiConfig.baseUrl
+      ) {
+        setAiConfig((prev) => ({
+          ...prev,
+          apiKey: cached?.apiKey || '',
+          model: cached?.model || '',
+          baseUrl: cached?.baseUrl || ''
+        }))
+      }
     }
-  }, [aiConfig.provider])
+  }, [aiConfig.provider, providerCache])
 
   // Update cache when config changes
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -123,8 +123,11 @@ async function initializeServices(): Promise<void> {
     pluginManager = new PluginManager(aiEngine, databaseService)
 
     // Register default plugins
-    pluginManager.registerPlugin(new DevToolsPlugin())
-    pluginManager.registerPlugin(new ProblemSolverPlugin())
+    await pluginManager.registerPlugin(new DevToolsPlugin())
+    await pluginManager.registerPlugin(new ProblemSolverPlugin())
+
+    // Load installed plugins
+    await pluginManager.initialize()
 
     console.log('Plugin manager initialized')
 
@@ -283,8 +286,32 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('plugins:updateConfig', async (_, id: string, config: Record<string, unknown>) => {
     if (!pluginManager) throw new Error('Plugin manager not initialized')
-    pluginManager.updatePluginConfig(id, config)
+    await pluginManager.updatePluginConfig(id, config)
     return true
+  })
+
+  ipcMain.handle('plugins:install', async (_, filePath: string) => {
+    if (!pluginManager) throw new Error('Plugin manager not initialized')
+    await pluginManager.installPlugin(filePath)
+    return true
+  })
+
+  ipcMain.handle('plugins:uninstall', async (_, id: string) => {
+    if (!pluginManager) throw new Error('Plugin manager not initialized')
+    await pluginManager.uninstallPlugin(id)
+    return true
+  })
+
+  ipcMain.handle('dialog:openFile', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Plugins', extensions: ['zip', 'lkp', 'tgz', 'gz', 'js'] }]
+    })
+    if (canceled) {
+      return null
+    } else {
+      return filePaths[0]
+    }
   })
 
   // IPC test

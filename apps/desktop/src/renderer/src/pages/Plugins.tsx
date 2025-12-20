@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react'
-import { Plug, Plus, Settings } from 'lucide-react'
+import { Plug, Plus, Settings, Code, FileText, Trash2 } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
 import {
   Dialog,
@@ -9,6 +10,7 @@ import {
   DialogFooter
 } from '../components/ui/dialog'
 import { Button } from '../components/ui/button'
+import { SchemaForm } from '../components/SchemaForm'
 
 interface Plugin {
   id: string
@@ -17,6 +19,7 @@ interface Plugin {
   description: string
   enabled: boolean
   config?: Record<string, unknown>
+  configSchema?: Record<string, unknown>
 }
 
 export default function Plugins(): React.JSX.Element {
@@ -24,6 +27,8 @@ export default function Plugins(): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
   const [configJson, setConfigJson] = useState('')
+  const [mode, setMode] = useState<'form' | 'json'>('json')
+  const [configObject, setConfigObject] = useState<Record<string, unknown>>({})
 
   const loadPlugins = async () => {
     setLoading(true)
@@ -52,14 +57,38 @@ export default function Plugins(): React.JSX.Element {
 
   const openConfig = (plugin: Plugin) => {
     setSelectedPlugin(plugin)
-    setConfigJson(JSON.stringify(plugin.config || {}, null, 2))
+    const currentConfig = plugin.config || {}
+    setConfigObject(currentConfig)
+    setConfigJson(JSON.stringify(currentConfig, null, 2))
+    setMode(plugin.configSchema ? 'form' : 'json')
+  }
+
+  const handleModeSwitch = (newMode: 'form' | 'json') => {
+    if (newMode === mode) return
+
+    if (newMode === 'form') {
+      try {
+        const parsed = JSON.parse(configJson)
+        setConfigObject(parsed)
+        setMode('form')
+      } catch {
+        alert('JSON 格式错误，无法切换到表单模式')
+      }
+    } else {
+      setConfigJson(JSON.stringify(configObject, null, 2))
+      setMode('json')
+    }
   }
 
   const saveConfig = async () => {
     if (!selectedPlugin) return
     try {
-      const config = JSON.parse(configJson)
-      await apiClient.plugins.updateConfig(selectedPlugin.id, config)
+      let configToSave = configObject
+      if (mode === 'json') {
+        configToSave = JSON.parse(configJson)
+      }
+
+      await apiClient.plugins.updateConfig(selectedPlugin.id, configToSave)
       loadPlugins()
       setSelectedPlugin(null)
     } catch (error) {
@@ -68,14 +97,49 @@ export default function Plugins(): React.JSX.Element {
     }
   }
 
+  const handleInstall = async () => {
+    try {
+      const filePath = await window.api.plugins.openFileDialog()
+      if (filePath) {
+        await window.api.plugins.install(filePath)
+        loadPlugins()
+        alert('Plugin installed successfully!')
+      }
+    } catch (error) {
+      console.error('Failed to install plugin:', error)
+      alert('Failed to install plugin: ' + String(error))
+    }
+  }
+
+  const handleUninstall = async (pluginId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('确定要卸载该插件吗？卸载后将删除插件文件。')) return
+
+    try {
+      await window.api.plugins.uninstall(pluginId)
+      loadPlugins()
+      // If we uninstalled the currently selected plugin, clear selection
+      if (selectedPlugin?.id === pluginId) {
+        setSelectedPlugin(null)
+      }
+      alert('Plugin uninstalled successfully!')
+    } catch (error) {
+      console.error('Failed to uninstall plugin:', error)
+      alert('Failed to uninstall plugin: ' + String(error))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">插件管理</h1>
-          <p className="mt-1 text-sm text-gray-500">扩展知识助手的能力，集成更多工具和工作流</p>
+          <h1 className="text-2xl font-bold text-gray-900 selectable">插件管理</h1>
+          <p className="mt-1 text-sm text-gray-500 selectable">扩展知识助手的能力，集成更多工具和工作流</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={handleInstall}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all"
+        >
           <Plus className="w-4 h-4" />
           <span>安装插件</span>
         </button>
@@ -102,12 +166,12 @@ export default function Plugins(): React.JSX.Element {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-gray-900">{plugin.name}</h3>
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                      <h3 className="text-base font-semibold text-gray-900 selectable">{plugin.name}</h3>
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full selectable">
                         v{plugin.version}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-600 max-w-2xl">{plugin.description}</p>
+                    <p className="mt-1 text-sm text-gray-600 max-w-2xl selectable">{plugin.description}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -118,6 +182,15 @@ export default function Plugins(): React.JSX.Element {
                   >
                     <Settings className="w-5 h-5" />
                   </button>
+                  {(plugin as any).canUninstall && (
+                    <button
+                      onClick={(e) => handleUninstall(plugin.id, e)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      title="卸载插件"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => togglePlugin(plugin.id, !plugin.enabled)}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
@@ -138,19 +211,55 @@ export default function Plugins(): React.JSX.Element {
       </div>
 
       <Dialog open={!!selectedPlugin} onOpenChange={(open) => !open && setSelectedPlugin(null)}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>配置插件: {selectedPlugin?.name}</DialogTitle>
+            <div className="flex items-center justify-between mr-8">
+              <DialogTitle>配置插件: {selectedPlugin?.name}</DialogTitle>
+              {selectedPlugin?.configSchema && (
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => handleModeSwitch('form')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      mode === 'form' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    title="表单模式"
+                  >
+                    <FileText className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleModeSwitch('json')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      mode === 'json' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    title="JSON 模式"
+                  >
+                    <Code className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
+
           <div className="py-4">
-            <p className="mb-2 text-sm text-gray-500">JSON 配置:</p>
-            <textarea
-              className="w-full h-96 font-mono text-sm p-4 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-              value={configJson}
-              onChange={(e) => setConfigJson(e.target.value)}
-              spellCheck={false}
-            />
+            {mode === 'form' && selectedPlugin?.configSchema ? (
+              <SchemaForm
+                schema={selectedPlugin.configSchema}
+                value={configObject}
+                onChange={setConfigObject}
+              />
+            ) : (
+              <div>
+                <p className="mb-2 text-sm text-gray-500">JSON 配置 (可直接编辑):</p>
+                <textarea
+                  className="w-full h-96 font-mono text-sm p-4 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none resize-none selectable"
+                  value={configJson}
+                  onChange={(e) => setConfigJson(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedPlugin(null)}>
               取消

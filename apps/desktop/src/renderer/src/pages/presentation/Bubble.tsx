@@ -142,7 +142,7 @@ export default function BubblePresentation(): React.JSX.Element {
 
         {/* Content */}
         <div className="p-3">
-          <p className="text-gray-300 text-xs leading-relaxed mb-3">{insight.content}</p>
+          <p className="text-gray-300 text-xs leading-relaxed mb-3 selectable">{insight.content}</p>
 
           {/* Actions */}
           {insight.suggestedActions && insight.suggestedActions.length > 0 && (

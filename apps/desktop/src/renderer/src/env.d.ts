@@ -93,9 +93,15 @@ declare global {
             version: string
             description: string
             enabled: boolean
+            config?: Record<string, unknown>
+            configSchema?: Record<string, unknown>
+            canUninstall?: boolean
           }>
         >
         toggle: (id: string, enabled: boolean) => Promise<boolean>
+        install: (path: string) => Promise<boolean>
+        uninstall: (id: string) => Promise<boolean>
+        openFileDialog: () => Promise<string | null>
       }
     }
   }

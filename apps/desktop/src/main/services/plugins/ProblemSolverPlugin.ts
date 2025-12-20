@@ -13,6 +13,19 @@ export class ProblemSolverPlugin implements LiveKnowledgePlugin {
     'Detects problem-solving scenarios and offers AI-powered solutions in a dedicated window.'
 
   config: Record<string, any> = {}
+
+  configSchema = {
+    type: 'object',
+    properties: {
+      systemPrompt: {
+        type: 'string',
+        title: '系统提示词 (System Prompt)',
+        description: 'AI 解决问题时使用的核心指令模板。可以使用 {problem} 作为占位符。',
+        format: 'textarea'
+      }
+    }
+  }
+
   defaultConfig = {
     systemPrompt: `You are an expert algorithm and problem-solving assistant.
 Please provide a comprehensive solution for the following problem:
@@ -32,17 +45,18 @@ IMPORTANT: Use proper Markdown formatting. Use code blocks for code. Do NOT outp
   private solutionWindow: BrowserWindow | null = null
   // Map to store context by ID: <id, { problem, screenshotPath }>
   private contextStore: Map<string, { problem: string; screenshotPath: string | null }> = new Map()
-  
-  private lastProblemContext: { problem: string; sessionId: string; timestamp: number } | null = null
+
+  private lastProblemContext: { problem: string; sessionId: string; timestamp: number } | null =
+    null
   private pluginContext: PluginContext | null = null
 
   initialize(context: PluginContext) {
     this.pluginContext = context
-    
+
     // Register API for the renderer to pull the problem context
     context.http.router.get('/context', async (req, res) => {
       const id = req.query.id as string
-      
+
       if (!id || !this.contextStore.has(id)) {
         res.status(404).json({ error: 'Context not found' })
         return
@@ -75,7 +89,7 @@ IMPORTANT: Use proper Markdown formatting. Use code blocks for code. Do NOT outp
             }
           })
           .filter(Boolean)
-        
+
         res.json(history)
       } catch (error) {
         console.error('[Solver Plugin] Failed to fetch history:', error)
@@ -107,7 +121,8 @@ IMPORTANT: Use proper Markdown formatting. Use code blocks for code. Do NOT outp
       res.setHeader('Transfer-Encoding', 'chunked')
 
       try {
-        const promptTemplate = (this.config.systemPrompt as string) || this.defaultConfig.systemPrompt
+        const promptTemplate =
+          (this.config.systemPrompt as string) || this.defaultConfig.systemPrompt
         const prompt = promptTemplate.replace('{problem}', problem)
 
         const stream = context.ai.generateCompletionStream(prompt, images)
@@ -119,7 +134,7 @@ IMPORTANT: Use proper Markdown formatting. Use code blocks for code. Do NOT outp
         }
 
         res.end()
-        
+
         // Save to history
         try {
           await context.database.createKnowledgeItem({
@@ -134,7 +149,6 @@ IMPORTANT: Use proper Markdown formatting. Use code blocks for code. Do NOT outp
         } catch (dbError) {
           console.error('[Solver Plugin] Failed to save history:', dbError)
         }
-
       } catch (error) {
         console.error('[Solver Plugin] Generation failed:', error)
         res.write(
@@ -176,24 +190,24 @@ If the user appears to be solving a technical problem, coding challenge, or math
         if (!problem) return false
 
         const screenshotPath = action.payload.screenshotPath as string | undefined
-        
+
         // Duplicate Detection
         if (await this.isDuplicateTask(problem)) {
-           console.log('[ProblemSolverPlugin] Duplicate task detected, reusing existing session.')
-           if (this.solutionWindow && !this.solutionWindow.isDestroyed()) {
-             this.solutionWindow.focus()
-             // If we had a stored session ID for this problem, we could potentially reload it,
-             // but currently we just focus the window which likely shows the last result if it wasn't closed.
-             // If it was closed, we open a new one anyway.
-           } else {
-             // If window is closed but it's a duplicate task, we might want to open it with the OLD context?
-             // But we only store `lastProblemContext` in memory.
-             // Let's just proceed to open window but maybe we could skip generation if we had the result?
-             // For now, focusing the window is the main benefit if it's open.
-             // If it's closed, we open a new one (re-solving is fine if the user closed the previous one).
-             this.openSolutionWindow(problem, screenshotPath)
-           }
-           return true
+          console.log('[ProblemSolverPlugin] Duplicate task detected, reusing existing session.')
+          if (this.solutionWindow && !this.solutionWindow.isDestroyed()) {
+            this.solutionWindow.focus()
+            // If we had a stored session ID for this problem, we could potentially reload it,
+            // but currently we just focus the window which likely shows the last result if it wasn't closed.
+            // If it was closed, we open a new one anyway.
+          } else {
+            // If window is closed but it's a duplicate task, we might want to open it with the OLD context?
+            // But we only store `lastProblemContext` in memory.
+            // Let's just proceed to open window but maybe we could skip generation if we had the result?
+            // For now, focusing the window is the main benefit if it's open.
+            // If it's closed, we open a new one (re-solving is fine if the user closed the previous one).
+            this.openSolutionWindow(problem, screenshotPath)
+          }
+          return true
         }
 
         this.openSolutionWindow(problem, screenshotPath)
@@ -202,21 +216,21 @@ If the user appears to be solving a technical problem, coding challenge, or math
       return false
     }
   }
-  
+
   private async isDuplicateTask(newProblem: string): Promise<boolean> {
     if (!this.lastProblemContext) return false
-    
+
     // Check if within reasonable time (e.g. 1 hour)
     if (Date.now() - this.lastProblemContext.timestamp > 3600000) return false
-    
+
     // Exact match
     if (this.lastProblemContext.problem === newProblem) return true
-    
+
     // AI Check
     if (this.pluginContext) {
       try {
         const prompt = `Compare these two problem statements and determine if they describe the exact same task or coding problem.
-            
+
 Problem 1: "${this.lastProblemContext.problem}"
 
 Problem 2: "${newProblem}"
@@ -228,7 +242,7 @@ Reply with only "YES" or "NO".`
         console.error('Duplicate check failed', e)
       }
     }
-    
+
     return false
   }
 
@@ -238,7 +252,7 @@ Reply with only "YES" or "NO".`
       problem,
       screenshotPath: screenshotPath || null
     })
-    
+
     // Update last problem context
     this.lastProblemContext = {
       problem,

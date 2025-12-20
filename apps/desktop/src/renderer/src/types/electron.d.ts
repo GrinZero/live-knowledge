@@ -56,11 +56,20 @@ export interface SettingsAPI {
   }) => Promise<string[]>
 }
 
+export interface PluginsAPI {
+  list: () => Promise<unknown[]>
+  toggle: (id: string, enabled: boolean) => Promise<boolean>
+  install: (path: string) => Promise<boolean>
+  uninstall: (id: string) => Promise<boolean>
+  openFileDialog: () => Promise<string | null>
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
   presentation: PresentationAPI
   settings: SettingsAPI
+  plugins: PluginsAPI
 }
 
 declare global {

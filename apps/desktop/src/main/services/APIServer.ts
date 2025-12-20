@@ -371,6 +371,7 @@ export class APIServer {
             provider: config.settings.provider,
             model: config.settings.model,
             proxyUrl: config.settings.proxyUrl,
+            baseUrl: config.settings.baseUrl,
             language: config.settings.language
           })
         } catch (error) {

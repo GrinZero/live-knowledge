@@ -2,3 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'plugins/*'
+
+catalog:
+  adm-zip: ^0.5.16
+  "@types/adm-zip": ^0.5.7

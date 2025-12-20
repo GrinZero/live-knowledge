@@ -171,6 +171,21 @@ export class DatabaseService {
       )
     `
 
+    const createPluginConfigsTable = `
+      CREATE TABLE IF NOT EXISTS plugin_configs (
+        plugin_id TEXT PRIMARY KEY,
+        config TEXT NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+
+    const createInstalledPluginsTable = `
+      CREATE TABLE IF NOT EXISTS installed_plugins (
+        path TEXT PRIMARY KEY,
+        added_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+
     const tables = [
       createUsersTable,
       createMonitoringSessionsTable,
@@ -180,7 +195,9 @@ export class DatabaseService {
       createUserActionsTable,
       createIntegrationConfigsTable,
       createScreenshotsTable,
-      createTriggerEventsTable
+      createTriggerEventsTable,
+      createPluginConfigsTable,
+      createInstalledPluginsTable
     ]
 
     for (const tableSql of tables) {
@@ -819,6 +836,49 @@ export class DatabaseService {
         ]
       )
     }
+  }
+
+  // Plugin Config operations
+  async savePluginConfig(pluginId: string, config: Record<string, unknown>): Promise<void> {
+    const now = new Date().toISOString()
+    const existing = await this.get('SELECT * FROM plugin_configs WHERE plugin_id = ?', [pluginId])
+
+    if (existing) {
+      await this.run('UPDATE plugin_configs SET config = ?, updated_at = ? WHERE plugin_id = ?', [
+        JSON.stringify(config),
+        now,
+        pluginId
+      ])
+    } else {
+      await this.run(
+        'INSERT INTO plugin_configs (plugin_id, config, updated_at) VALUES (?, ?, ?)',
+        [pluginId, JSON.stringify(config), now]
+      )
+    }
+  }
+
+  async getPluginConfig(pluginId: string): Promise<Record<string, unknown> | null> {
+    const row = await this.get('SELECT config FROM plugin_configs WHERE plugin_id = ?', [pluginId])
+    if (!row) return null
+    try {
+      return JSON.parse(String(row.config)) as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+
+  // Installed Plugins
+  async addInstalledPlugin(path: string): Promise<void> {
+    await this.run('INSERT OR IGNORE INTO installed_plugins (path) VALUES (?)', [path])
+  }
+
+  async getInstalledPlugins(): Promise<string[]> {
+    const rows = await this.all('SELECT path FROM installed_plugins')
+    return rows.map((row) => String(row.path))
+  }
+
+  async removeInstalledPlugin(path: string): Promise<void> {
+    await this.run('DELETE FROM installed_plugins WHERE path = ?', [path])
   }
 
   // Statistics

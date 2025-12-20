@@ -1,11 +1,11 @@
 {
-  "name": "demo-plugin",
+  "name": "webhook-plugin",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+    "build": "tsup src/index.ts --format cjs --dts --clean",
+    "pack": "lk-pack"
   },
   "dependencies": {
     "@live-knowledge/plugin-sdk": "workspace:*"

@@ -455,7 +455,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Title
                     </label>
-                    <p className="text-gray-900 font-medium text-lg leading-snug">
+                    <p className="text-gray-900 font-medium text-lg leading-snug selectable">
                       {selectedItem.title}
                     </p>
                   </div>
@@ -464,7 +464,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Content
                     </label>
-                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap border border-gray-100">
+                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap border border-gray-100 selectable">
                       {selectedItem.content}
                     </div>
                   </div>
@@ -535,7 +535,7 @@ export default function KnowledgePanel(): React.JSX.Element {
                             className={`flex flex-col gap-1 px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}
                           >
                             <span className="text-gray-500 text-xs font-medium">{key}</span>
-                            <div className="text-gray-900 text-xs break-all whitespace-pre-wrap bg-white p-2 rounded border border-gray-100 max-h-60 overflow-y-auto">
+                            <div className="text-gray-900 text-xs break-all whitespace-pre-wrap bg-white p-2 rounded border border-gray-100 max-h-60 overflow-y-auto selectable">
                               {Array.isArray(value)
                                 ? value
                                     .map((v) =>
@@ -565,8 +565,8 @@ export default function KnowledgePanel(): React.JSX.Element {
                             key={insight.id}
                             className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white"
                           >
-                            <div className="font-semibold text-sm mb-1">{insight.title}</div>
-                            <div className="text-xs text-gray-300 leading-relaxed opacity-90">
+                            <div className="font-semibold text-sm mb-1 selectable">{insight.title}</div>
+                            <div className="text-xs text-gray-300 leading-relaxed opacity-90 selectable">
                               {insight.content}
                             </div>
                             {((typeof insight.metadata?.screenshotPath === 'string' &&
