@@ -785,13 +785,18 @@ export class DatabaseService {
 
   async saveAIConfig(
     userId: string,
-    config: { apiKey: string; provider: string; model: string; proxyUrl?: string }
+    config: { apiKey: string; provider: string; model: string; proxyUrl?: string; baseUrl?: string }
   ): Promise<void> {
     const existing = await this.getAIConfig(userId)
     const now = new Date().toISOString()
 
     const credentials = { apiKey: config.apiKey }
-    const settings = { provider: config.provider, model: config.model, proxyUrl: config.proxyUrl }
+    const settings = {
+      provider: config.provider,
+      model: config.model,
+      proxyUrl: config.proxyUrl,
+      baseUrl: config.baseUrl
+    }
 
     if (existing) {
       await this.run(

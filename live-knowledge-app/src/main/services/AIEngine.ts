@@ -12,14 +12,15 @@ const originalFetch = global.fetch
 export class AIEngine {
   private openai: OpenAI | null = null
   private gemini: GoogleGenerativeAI | null = null
-  private provider: 'openai' | 'gemini' | 'none' = 'none'
+  private provider: 'openai' | 'gemini' | 'custom' | 'none' = 'none'
   private modelName: string = ''
+  private baseUrl: string = ''
   private contextStore: ContextMemory
   private isEnabled: boolean = false
   private httpAgent: HttpsProxyAgent<string> | undefined
   private language: 'zh' | 'en' = 'zh'
 
-  constructor(apiKey?: string, provider?: 'openai' | 'gemini') {
+  constructor(apiKey?: string, provider?: 'openai' | 'gemini' | 'custom') {
     // Configure proxy agent
     const proxyUrl = process.env.https_proxy || process.env.http_proxy
 
@@ -95,7 +96,7 @@ export class AIEngine {
         )
         const text = await response.response.text()
         resultJson = this.parseJsonSafe(text)
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         const userContent: Array<
           { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
         > = [{ type: 'text', text: prompt }]
@@ -204,7 +205,7 @@ export class AIEngine {
         const response = await model.generateContent([prompt, imagePart])
         const text = await response.response.text()
         resultJson = this.parseJsonSafe(text)
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         const response = await this.openai.chat.completions.create({
           model: this.modelName, // Must be gpt-4o, gpt-4-turbo, etc.
           messages: [
@@ -252,12 +253,13 @@ export class AIEngine {
 
   updateConfig(config: {
     apiKey?: string
-    provider?: 'openai' | 'gemini'
+    provider?: 'openai' | 'gemini' | 'custom'
     model?: string
     proxyUrl?: string
+    baseUrl?: string
     language?: 'zh' | 'en'
   }): void {
-    const { apiKey, provider, model, proxyUrl, language } = config
+    const { apiKey, provider, model, proxyUrl, baseUrl, language } = config
 
     if (language) {
       this.language = language
@@ -284,8 +286,12 @@ export class AIEngine {
       }
     }
 
+    if (baseUrl) {
+      this.baseUrl = baseUrl
+    }
+
     // If only language is updated, don't reset the engine
-    if (!apiKey && !provider && !model && proxyUrl === undefined) {
+    if (!apiKey && !provider && !model && proxyUrl === undefined && !baseUrl) {
       return
     }
 
@@ -311,18 +317,23 @@ export class AIEngine {
       } catch (error) {
         console.warn('Failed to initialize Gemini client:', error)
       }
-    } else if (provider === 'openai' && apiKey) {
+    } else if ((provider === 'openai' || provider === 'custom') && apiKey) {
       try {
-        this.openai = new OpenAI({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const openaiConfig: any = {
           apiKey,
           httpAgent: this.httpAgent
-        })
-        this.provider = 'openai'
+        }
+        if (this.baseUrl) {
+          openaiConfig.baseURL = this.baseUrl
+        }
+        this.openai = new OpenAI(openaiConfig)
+        this.provider = provider
         this.modelName = model || 'gpt-4.1'
         this.isEnabled = true
-        console.log(`AIEngine: Switched to OpenAI (Model: ${this.modelName})`)
+        console.log(`AIEngine: Switched to ${provider} (Model: ${this.modelName})`)
       } catch (error) {
-        console.warn('Failed to initialize OpenAI client:', error)
+        console.warn(`Failed to initialize ${provider} client:`, error)
       }
     } else {
       console.warn('AIEngine: No valid provider configured.')
@@ -333,8 +344,9 @@ export class AIEngine {
     apiKey: string
     provider: string
     proxyUrl?: string
+    baseUrl?: string
   }): Promise<string[]> {
-    const { apiKey, provider, proxyUrl } = config
+    const { apiKey, provider, proxyUrl, baseUrl } = config
     if (!apiKey || !provider) return []
 
     let agent = this.httpAgent
@@ -358,13 +370,18 @@ export class AIEngine {
             ?.map((m) => m.name.replace('models/', ''))
             .filter((n) => n.includes('gemini')) || []
         )
-      } else if (provider === 'openai') {
-        const openai = new OpenAI({
+      } else if (provider === 'openai' || provider === 'custom') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const openaiConfig: any = {
           apiKey,
           httpAgent: agent
-        })
+        }
+        if (baseUrl) {
+          openaiConfig.baseURL = baseUrl
+        }
+        const openai = new OpenAI(openaiConfig)
         const list = await openai.models.list()
-        return list.data.map((m) => m.id).filter((id) => id.includes('gpt'))
+        return list.data.map((m) => m.id)
       }
     } catch (error) {
       console.error(`Failed to fetch models for ${provider}:`, error)
@@ -420,7 +437,7 @@ export class AIEngine {
         const response = await model.generateContent(prompt)
         const text = await response.response.text()
         resultJson = this.parseJsonSafe(text)
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         const response = await this.openai.chat.completions.create({
           model: this.modelName,
           messages: [
@@ -489,7 +506,7 @@ export class AIEngine {
         const model = this.gemini.getGenerativeModel({ model: this.modelName })
         const response = await model.generateContent(prompt)
         return response.response.text()
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         const response = await this.openai.chat.completions.create({
           model: this.modelName,
           messages: [{ role: 'user', content: prompt }],
@@ -542,7 +559,7 @@ export class AIEngine {
           const text = chunk.text()
           if (text) yield text
         }
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const messages: any[] = [
           {
@@ -615,7 +632,7 @@ export class AIEngine {
         const response = await model.generateContent(prompt)
         const text = await response.response.text()
         resultJson = JSON.parse(text)
-      } else if (this.provider === 'openai' && this.openai) {
+      } else if ((this.provider === 'openai' || this.provider === 'custom') && this.openai) {
         const systemPrompt =
           this.language === 'zh'
             ? '你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。请生成结构化 JSON。'

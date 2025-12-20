@@ -81,13 +81,14 @@ async function initializeServices(): Promise<void> {
       const persistedConfig = await databaseService.getAIConfig('default_user')
       if (persistedConfig) {
         const apiKey = persistedConfig.credentials.apiKey as string
-        const provider = persistedConfig.settings.provider as 'openai' | 'gemini'
+        const provider = persistedConfig.settings.provider as 'openai' | 'gemini' | 'custom'
         const model = persistedConfig.settings.model as string
         const proxyUrl = persistedConfig.settings.proxyUrl as string
+        const baseUrl = persistedConfig.settings.baseUrl as string
         const language = persistedConfig.settings.language as 'zh' | 'en'
 
         if (apiKey && provider) {
-          aiEngine.updateConfig({ apiKey, provider, model, proxyUrl, language })
+          aiEngine.updateConfig({ apiKey, provider, model, proxyUrl, baseUrl, language })
         }
       } else {
         // Fallback to env vars if no persisted config
@@ -193,6 +194,7 @@ function setupIpcHandlers(): void {
       provider: config.settings.provider,
       model: config.settings.model,
       proxyUrl: config.settings.proxyUrl,
+      baseUrl: config.settings.baseUrl,
       language: config.settings.language
     }
   })
@@ -206,6 +208,7 @@ function setupIpcHandlers(): void {
         provider: string
         model: string
         proxyUrl?: string
+        baseUrl?: string
         language?: 'zh' | 'en'
       }
     ) => {
@@ -216,7 +219,7 @@ function setupIpcHandlers(): void {
       if (aiEngine) {
         aiEngine.updateConfig({
           ...config,
-          provider: config.provider as 'openai' | 'gemini'
+          provider: config.provider as 'openai' | 'gemini' | 'custom'
         })
       }
     }
@@ -224,7 +227,7 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle(
     'settings:fetchModels',
-    async (_, config: { apiKey: string; provider: string; proxyUrl?: string }) => {
+    async (_, config: { apiKey: string; provider: string; proxyUrl?: string; baseUrl?: string }) => {
       if (!aiEngine) throw new Error('AI Engine not initialized')
       return await aiEngine.fetchModels(config)
     }

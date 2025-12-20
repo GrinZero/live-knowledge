@@ -18,11 +18,12 @@ export default function Settings(): React.JSX.Element {
     apiKey: '',
     model: 'gemini-2.5-flash',
     proxyUrl: '',
+    baseUrl: '',
     language: 'zh'
   })
   // Cache for provider settings to restore when switching back
   const [providerCache, setProviderCache] = useState<
-    Record<string, { apiKey: string; model: string }>
+    Record<string, { apiKey: string; model: string; baseUrl?: string }>
   >({})
 
   const [isLoading, setIsLoading] = useState(false)
@@ -43,30 +44,41 @@ export default function Settings(): React.JSX.Element {
       setAiConfig((prev) => ({
         ...prev,
         apiKey: cached?.apiKey || '',
-        model: cached?.model || 'gpt-4.1'
+        model: cached?.model || 'gpt-4.1',
+        baseUrl: cached?.baseUrl || ''
       }))
     } else if (aiConfig.provider === 'gemini') {
       const cached = providerCache['gemini']
       setAiConfig((prev) => ({
         ...prev,
         apiKey: cached?.apiKey || '',
-        model: cached?.model || 'gemini-2.5-flash'
+        model: cached?.model || 'gemini-2.5-flash',
+        baseUrl: ''
+      }))
+    } else if (aiConfig.provider === 'custom') {
+      const cached = providerCache['custom']
+      setAiConfig((prev) => ({
+        ...prev,
+        apiKey: cached?.apiKey || '',
+        model: cached?.model || '',
+        baseUrl: cached?.baseUrl || ''
       }))
     }
   }, [aiConfig.provider])
 
   // Update cache when config changes
   useEffect(() => {
-    if (aiConfig.provider && (aiConfig.apiKey || aiConfig.model)) {
+    if (aiConfig.provider && (aiConfig.apiKey || aiConfig.model || aiConfig.baseUrl)) {
       setProviderCache((prev) => ({
         ...prev,
         [aiConfig.provider]: {
           apiKey: aiConfig.apiKey,
-          model: aiConfig.model
+          model: aiConfig.model,
+          baseUrl: aiConfig.baseUrl
         }
       }))
     }
-  }, [aiConfig.provider, aiConfig.apiKey, aiConfig.model])
+  }, [aiConfig.provider, aiConfig.apiKey, aiConfig.model, aiConfig.baseUrl])
 
   const loadAIConfig = async () => {
     try {
@@ -77,6 +89,7 @@ export default function Settings(): React.JSX.Element {
           apiKey: config.apiKey || '',
           model: config.model || '',
           proxyUrl: config.proxyUrl || '',
+          baseUrl: config.baseUrl || '',
           language: config.language || 'zh'
         })
         // Initialize cache with loaded config
@@ -85,14 +98,15 @@ export default function Settings(): React.JSX.Element {
             ...prev,
             [config.provider]: {
               apiKey: config.apiKey,
-              model: config.model
+              model: config.model,
+              baseUrl: config.baseUrl
             }
           }))
         }
 
         // If we have a key and provider, try to fetch models immediately
         if (config.apiKey && config.provider) {
-          fetchModels(config.apiKey, config.provider, config.proxyUrl)
+          fetchModels(config.apiKey, config.provider, config.proxyUrl, config.baseUrl)
         }
       }
     } catch (error) {
@@ -100,12 +114,13 @@ export default function Settings(): React.JSX.Element {
     }
   }
 
-  const fetchModels = async (key: string, provider: string, proxy?: string) => {
+  const fetchModels = async (key: string, provider: string, proxy?: string, baseUrl?: string) => {
     if (!key) return
     setIsFetchingModels(true)
     const proxyUrl = proxy !== undefined ? proxy : aiConfig.proxyUrl
+    const url = baseUrl !== undefined ? baseUrl : aiConfig.baseUrl
     try {
-      const models = await apiClient.settings.fetchModels({ apiKey: key, provider, proxyUrl })
+      const models = await apiClient.settings.fetchModels({ apiKey: key, provider, proxyUrl, baseUrl: url })
       if (models && models.length > 0) {
         setAvailableModels(models)
         // If current model is not in list, select the first one or keep it if it's custom
@@ -202,8 +217,25 @@ export default function Settings(): React.JSX.Element {
                 >
                   <option value="gemini">Google Gemini (Recommended)</option>
                   <option value="openai">OpenAI</option>
+                  <option value="custom">Custom (OpenAI Compatible)</option>
                 </select>
               </div>
+
+              {aiConfig.provider === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+                  <input
+                    type="text"
+                    value={aiConfig.baseUrl}
+                    onChange={(e) => setAiConfig({ ...aiConfig, baseUrl: e.target.value })}
+                    placeholder="https://api.example.com/v1"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter the base URL for your custom OpenAI-compatible API.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
@@ -213,13 +245,16 @@ export default function Settings(): React.JSX.Element {
                     value={aiConfig.apiKey}
                     onChange={(e) => setAiConfig({ ...aiConfig, apiKey: e.target.value })}
                     onBlur={() => {
-                      if (aiConfig.apiKey) fetchModels(aiConfig.apiKey, aiConfig.provider)
+                      if (aiConfig.apiKey)
+                        fetchModels(aiConfig.apiKey, aiConfig.provider, aiConfig.proxyUrl, aiConfig.baseUrl)
                     }}
                     placeholder="Enter your API key..."
                     className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
                   />
                   <button
-                    onClick={() => fetchModels(aiConfig.apiKey, aiConfig.provider)}
+                    onClick={() =>
+                      fetchModels(aiConfig.apiKey, aiConfig.provider, aiConfig.proxyUrl, aiConfig.baseUrl)
+                    }
                     disabled={isFetchingModels || !aiConfig.apiKey}
                     className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Fetch available models"
@@ -232,29 +267,48 @@ export default function Settings(): React.JSX.Element {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Proxy URL (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={aiConfig.proxyUrl}
-                  onChange={(e) => setAiConfig({ ...aiConfig, proxyUrl: e.target.value })}
-                  placeholder="http://127.0.0.1:7890"
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Configure a proxy if you are having trouble connecting to the AI provider.
-                </p>
-              </div>
+              {aiConfig.provider !== 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Proxy URL (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={aiConfig.proxyUrl}
+                    onChange={(e) => setAiConfig({ ...aiConfig, proxyUrl: e.target.value })}
+                    placeholder="http://127.0.0.1:7890"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Configure a proxy if you are having trouble connecting to the AI provider.
+                  </p>
+                </div>
+              )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-sm font-medium text-gray-700">Model Name</label>
+                  {availableModels.length > 0 && (
+                    <button
+                      onClick={() => setAvailableModels([])}
+                      className="text-xs text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Enter manually
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   {availableModels.length > 0 ? (
                     <select
                       value={aiConfig.model}
-                      onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          setAvailableModels([])
+                          setAiConfig({ ...aiConfig, model: '' })
+                        } else {
+                          setAiConfig({ ...aiConfig, model: e.target.value })
+                        }
+                      }}
                       className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm appearance-none"
                     >
                       {availableModels.map((model) => (
