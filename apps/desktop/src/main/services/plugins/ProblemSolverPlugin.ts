@@ -1,5 +1,4 @@
-import { LiveKnowledgePlugin, PluginContext } from '../../types/plugin'
-import { Action } from '../../../renderer/src/types'
+import { LiveKnowledgePlugin, PluginContext, Action } from '../../types/plugin'
 import { BrowserWindow } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'

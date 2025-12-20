@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import OpenAI from 'openai'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import nodeFetch from 'node-fetch'
 import { Tag, Insight, Action, ContextWindow } from '../../renderer/src/types'
 import { ContextMemory } from './ContextMemory'
 
@@ -275,7 +274,7 @@ export class AIEngine {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         global.fetch = async (url: any, init: any) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return nodeFetch(url, { ...init, agent }) as any
+          return fetch(url, { ...init, agent }) as any
         }
       } else {
         this.httpAgent = undefined
@@ -319,15 +318,11 @@ export class AIEngine {
       }
     } else if ((provider === 'openai' || provider === 'custom') && apiKey) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const openaiConfig: any = {
+        this.openai = new OpenAI({
           apiKey,
-          httpAgent: this.httpAgent
-        }
-        if (this.baseUrl) {
-          openaiConfig.baseURL = this.baseUrl
-        }
-        this.openai = new OpenAI(openaiConfig)
+          httpAgent: this.httpAgent,
+          baseURL: this.baseUrl
+        })
         this.provider = provider
         this.modelName = model || 'gpt-4.1'
         this.isEnabled = true
@@ -359,9 +354,10 @@ export class AIEngine {
         // Use REST API to list models for Gemini as the SDK might not expose a simple list method yet
         // or it's cleaner to just fetch.
         // Use node-fetch to support proxy agent
-        const response = await nodeFetch(
+        const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-          { agent }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { agent } as any
         )
         if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`)
         const data = (await response.json()) as { models?: { name: string }[] }
