@@ -23,14 +23,10 @@ function App(): React.JSX.Element {
     <Routes>
       {/* Plugin Routes */}
       {pluginRoutes.map((route) => (
-        <Route 
-          key={route.path} 
-          path={route.path} 
-          element={
-            <PluginErrorBoundary pluginId={route.path}>
-              {route.element}
-            </PluginErrorBoundary>
-          } 
+        <Route
+          key={route.path}
+          path={route.path}
+          element={<PluginErrorBoundary pluginId={route.path}>{route.element}</PluginErrorBoundary>}
         />
       ))}
 

@@ -1,5 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, BookOpen, Settings, History, PanelsTopLeft, Plug } from 'lucide-react'
+import {
+  Activity,
+  LayoutDashboard,
+  BookOpen,
+  Settings,
+  History,
+  PanelsTopLeft,
+  Plug
+} from 'lucide-react'
 import type React from 'react'
 
 const navItems = [

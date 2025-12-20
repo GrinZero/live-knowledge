@@ -139,7 +139,14 @@ async function initializeServices(): Promise<void> {
     console.log('Monitoring service initialized')
 
     // Initialize API server
-    apiServer = new APIServer(databaseService, monitoringService, presentationService, 3000)
+    apiServer = new APIServer(
+      databaseService,
+      monitoringService,
+      presentationService,
+      pluginManager,
+      aiEngine,
+      3000
+    )
     await apiServer.start()
     console.log('API server initialized on port 3000')
   } catch (error) {

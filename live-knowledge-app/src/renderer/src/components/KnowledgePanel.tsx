@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Search, Calendar, Tag, Trash2, Download, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImagePreview } from '@/components/ImagePreview'
+import { apiClient } from '../lib/api-client'
 
 interface KnowledgeItem {
   id: string
@@ -48,7 +49,7 @@ export default function KnowledgePanel(): React.JSX.Element {
     loadInsights()
 
     // Listen for real-time updates
-    const handleInsightGenerated = (newInsight: Insight) => {
+    const handleInsightGenerated = (_: unknown, newInsight: Insight) => {
       setInsights((prev) => {
         // Prevent duplicates
         if (prev.some((i) => i.id === newInsight.id)) return prev
@@ -59,11 +60,18 @@ export default function KnowledgePanel(): React.JSX.Element {
     }
 
     // Subscribe to events
-    window.api.monitoring.onInsight(handleInsightGenerated)
+    // @ts-ignore: Accessing internal electron API
+    if (window.electron && window.electron.ipcRenderer) {
+      // @ts-ignore: Accessing internal electron API
+      window.electron.ipcRenderer.on('monitoring:insight', handleInsightGenerated)
+    }
 
-    // @ts-ignore: Preload API does not return cleanup yet
     return () => {
-      // No cleanup available yet
+      // @ts-ignore: Accessing internal electron API
+      if (window.electron && window.electron.ipcRenderer) {
+        // @ts-ignore: Accessing internal electron API
+        window.electron.ipcRenderer.removeAllListeners('monitoring:insight')
+      }
     }
   }, [])
 
@@ -75,7 +83,7 @@ export default function KnowledgePanel(): React.JSX.Element {
   const loadKnowledgeItems = async () => {
     setIsLoading(true)
     try {
-      const items = await window.api.database.getKnowledgeItems(100)
+      const items = await apiClient.database.getKnowledgeItems(100)
       setKnowledgeItems(items)
       // When knowledge items change (e.g. deletion), we should also update filtered items
       // But filteredItems is updated via useEffect dep on knowledgeItems, so this is fine.
@@ -88,7 +96,7 @@ export default function KnowledgePanel(): React.JSX.Element {
 
   const loadInsights = async () => {
     try {
-      const insightsData = await window.api.database.getInsights(100)
+      const insightsData = await apiClient.database.getInsights(100)
       setInsights(insightsData as unknown as Insight[])
     } catch (error) {
       console.error('Failed to load insights:', error)
@@ -144,7 +152,7 @@ export default function KnowledgePanel(): React.JSX.Element {
   const handleDeleteItem = async (itemId: string) => {
     if (confirm('Are you sure you want to delete this knowledge item?')) {
       try {
-        await window.api.database.deleteKnowledgeItem(itemId)
+        await apiClient.database.deleteKnowledgeItem(itemId)
         // Manually update local state to reflect deletion immediately
         setKnowledgeItems((prev) => prev.filter((item) => item.id !== itemId))
         // Also remove related insights from local state

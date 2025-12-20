@@ -1,13 +1,23 @@
 import { Action } from '../../renderer/src/types'
 import { IpcMainInvokeEvent } from 'electron'
+import { Router } from 'express'
 
 export interface PluginContext {
   ai: {
     generateCompletion: (prompt: string) => Promise<string>
+    generateCompletionStream: (
+      prompt: string,
+      images?: string[]
+    ) => AsyncGenerator<string, void, unknown>
   }
   ipc: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handle: (channel: string, listener: (event: IpcMainInvokeEvent, ...args: any[]) => (Promise<void> | any)) => void
+    handle: (
+      channel: string,
+      listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<void> | any
+    ) => void
+  }
+  http: {
+    router: Router
   }
 }
 

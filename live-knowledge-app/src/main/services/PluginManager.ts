@@ -3,11 +3,14 @@ import { LiveKnowledgePlugin, PluginContext } from '../types/plugin'
 import { Action } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
 import { ipcMain } from 'electron'
+import { Router } from 'express'
 
 export class PluginManager extends EventEmitter {
   private plugins: Map<string, LiveKnowledgePlugin> = new Map()
   private enabledPlugins: Set<string> = new Set()
   private aiEngine: AIEngine
+  // Map to store routers for each plugin
+  public pluginRouters: Map<string, Router> = new Map()
 
   constructor(aiEngine: AIEngine) {
     super()
@@ -20,15 +23,24 @@ export class PluginManager extends EventEmitter {
     }
     this.plugins.set(plugin.id, plugin)
     this.enabledPlugins.add(plugin.id) // Enable by default
-    
+
+    // Create a new router for this plugin
+    const router = Router()
+    this.pluginRouters.set(plugin.id, router)
+
     // Initialize plugin with dependencies
     if (plugin.initialize) {
       const context: PluginContext = {
         ai: {
-          generateCompletion: (prompt: string) => this.aiEngine.generateCompletion(prompt)
+          generateCompletion: (prompt: string) => this.aiEngine.generateCompletion(prompt),
+          generateCompletionStream: (prompt: string, images?: string[]) =>
+            this.aiEngine.generateCompletionStream(prompt, images)
         },
         ipc: {
           handle: (channel, listener) => ipcMain.handle(channel, listener)
+        },
+        http: {
+          router: router
         }
       }
       try {
@@ -51,8 +63,14 @@ export class PluginManager extends EventEmitter {
     console.log(`Plugin ${pluginId} ${enabled ? 'enabled' : 'disabled'}`)
   }
 
-  public getPluginStatus(): Array<{ id: string; name: string; version: string; description: string; enabled: boolean }> {
-    return Array.from(this.plugins.values()).map(p => ({
+  public getPluginStatus(): Array<{
+    id: string
+    name: string
+    version: string
+    description: string
+    enabled: boolean
+  }> {
+    return Array.from(this.plugins.values()).map((p) => ({
       id: p.id,
       name: p.name,
       version: p.version,
@@ -60,15 +78,15 @@ export class PluginManager extends EventEmitter {
       enabled: this.enabledPlugins.has(p.id)
     }))
   }
-  
+
   // Hook Execution Methods
 
   public async getContexts(): Promise<Record<string, unknown>> {
     let aggregatedContext: Record<string, unknown> = {}
-    
+
     for (const plugin of this.plugins.values()) {
       if (!this.enabledPlugins.has(plugin.id)) continue
-      
+
       if (plugin.hooks?.getContext) {
         try {
           const context = await plugin.hooks.getContext()
@@ -78,13 +96,13 @@ export class PluginManager extends EventEmitter {
         }
       }
     }
-    
+
     return aggregatedContext
   }
 
   public async getPromptAdditions(currentContext: Record<string, unknown>): Promise<string> {
     const additions: string[] = []
-    
+
     for (const plugin of this.plugins.values()) {
       if (!this.enabledPlugins.has(plugin.id)) continue
 
@@ -99,13 +117,13 @@ export class PluginManager extends EventEmitter {
         }
       }
     }
-    
+
     return additions.join('\n\n')
   }
 
   public async executeAction(action: Action): Promise<boolean> {
     let handled = false
-    
+
     for (const plugin of this.plugins.values()) {
       if (!this.enabledPlugins.has(plugin.id)) continue
 
@@ -123,7 +141,7 @@ export class PluginManager extends EventEmitter {
         }
       }
     }
-    
+
     return handled
   }
 }

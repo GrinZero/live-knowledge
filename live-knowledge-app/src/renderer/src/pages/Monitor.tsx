@@ -3,6 +3,7 @@ import { Play, Pause, Square, Settings, Activity, Eye, Brain, Database } from 'l
 import { Button } from '@/components/ui/button'
 import { ImagePreview } from '@/components/ImagePreview'
 import type { Insight as ModelInsight } from '../types'
+import { apiClient } from '../lib/api-client'
 
 interface MonitoringStatus {
   status: 'idle' | 'running' | 'paused' | 'error' | 'not_initialized'
@@ -39,8 +40,29 @@ export default function Monitor(): React.JSX.Element {
     loadInsights()
 
     // Set up event listeners
-    if (window.api?.monitoring) {
-      window.api.monitoring.onInsight((insight: ModelInsight) => {
+    // We'll need to poll or use SSE for status updates since we moved away from IPC for direct calls
+    // But for events pushed from main process, we still need IPC listeners if we want real-time updates without polling
+    // However, the user asked to move to HTTP backend. Real-time updates usually require WebSocket or SSE.
+    // For now, let's stick to polling for status updates to fully decouple or keep IPC ONLY for events if acceptable.
+    // Given the request "non-frontend-backend separation architecture gave plugin system trouble",
+    // it implies we should use HTTP for commands.
+    // For events, let's keep using IPC for now as it's efficient for Electron,
+    // OR we could implement polling for status/insights.
+    // Let's use polling for now to be consistent with "HTTP backend" request,
+    // although in a real app we'd use WS.
+
+    // Actually, let's keep the IPC listeners for events because the backend (main process)
+    // still pushes events to the renderer via webContents.send().
+    // The refactor was about "node main thread refactor to a backend http service".
+    // The renderer receiving events via IPC is still standard Electron.
+    // But if we want to be pure HTTP, we should poll or use SSE.
+    // Let's assume we keep IPC for *push* notifications for now as it's already there in main.ts
+    // (mainWindow.webContents.send('monitoring:insight', ...))
+
+    // @ts-ignore: Accessing internal electron API
+    if (window.electron && window.electron.ipcRenderer) {
+      // @ts-ignore: Accessing internal electron API
+      window.electron.ipcRenderer.on('monitoring:insight', (_: unknown, insight: ModelInsight) => {
         const mapped: DisplayInsight = {
           id: insight.id,
           title: insight.title,
@@ -49,12 +71,9 @@ export default function Monitor(): React.JSX.Element {
           confidence: 0.8,
           tags: [],
           createdAt: new Date().toISOString(),
-          // Ensure we handle both string and array, but prefer string (single image)
-          // Backend now sends single string for new items, but old items might be array
           screenshotPath: insight.metadata?.screenshotPath as string | string[]
         }
         setInsights((prev) => {
-          // Prevent duplicates
           if (prev.some((i) => i.id === mapped.id)) return prev
           return [mapped, ...prev.slice(0, 9)]
         })
@@ -65,23 +84,39 @@ export default function Monitor(): React.JSX.Element {
         }))
       })
 
-      window.api.monitoring.onStatusChange((newStatus: { status: string; sessionId?: string }) => {
-        setStatus(newStatus as MonitoringStatus)
-      })
+      // @ts-ignore: Accessing internal electron API
+      window.electron.ipcRenderer.on(
+        'monitoring:status',
+        (_: unknown, newStatus: { status: string; sessionId?: string }) => {
+          setStatus(newStatus as MonitoringStatus)
+        }
+      )
 
-      window.api.monitoring.onError((error: unknown) => {
+      // @ts-ignore: Accessing internal electron API
+      window.electron.ipcRenderer.on('monitoring:error', (_: unknown, error: unknown) => {
         setStatus((prev) => ({ ...prev, status: 'error', error: String(error) }))
       })
     }
 
-    // Poll status every 5 seconds
+    // Poll status every 5 seconds as a fallback/sync
     const interval = setInterval(loadStatus, 5000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      // @ts-ignore: Accessing internal electron API
+      if (window.electron && window.electron.ipcRenderer) {
+        // @ts-ignore: Accessing internal electron API
+        window.electron.ipcRenderer.removeAllListeners('monitoring:insight')
+        // @ts-ignore: Accessing internal electron API
+        window.electron.ipcRenderer.removeAllListeners('monitoring:status')
+        // @ts-ignore: Accessing internal electron API
+        window.electron.ipcRenderer.removeAllListeners('monitoring:error')
+      }
+    }
   }, [])
 
   const loadStatus = async (): Promise<void> => {
     try {
-      const newStatus = await window.api.monitoring.getStatus()
+      const newStatus = await apiClient.monitoring.getStatus()
       setStatus(newStatus as MonitoringStatus)
     } catch (error) {
       console.error('Failed to load status:', error)
@@ -90,7 +125,8 @@ export default function Monitor(): React.JSX.Element {
 
   const loadInsights = async (): Promise<void> => {
     try {
-      const insightsData = await window.api.database.getInsights(10)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insightsData: any[] = await apiClient.database.getInsights(10)
       const mapped = insightsData.map((d) => ({
         id: d.id,
         title: d.title,
@@ -99,7 +135,6 @@ export default function Monitor(): React.JSX.Element {
         confidence: d.confidence,
         tags: d.tags,
         createdAt: d.createdAt,
-        // @ts-ignore: metadata is returned by backend but not in typed definition of getInsights return
         screenshotPath: d.metadata?.screenshotPath || d.screenshotPath
       }))
       setInsights(mapped)
@@ -125,7 +160,7 @@ export default function Monitor(): React.JSX.Element {
           maxFrames: 5
         }
       }
-      await window.api.monitoring.start(config)
+      await apiClient.monitoring.start(config)
     } catch (error) {
       console.error('Failed to start monitoring:', error)
     } finally {
@@ -136,7 +171,7 @@ export default function Monitor(): React.JSX.Element {
   const handleStop = async (): Promise<void> => {
     setIsLoading(true)
     try {
-      await window.api?.monitoring?.stop()
+      await apiClient.monitoring.stop()
     } catch (error) {
       console.error('Failed to stop monitoring:', error)
     } finally {
@@ -147,7 +182,7 @@ export default function Monitor(): React.JSX.Element {
   const handlePause = async (): Promise<void> => {
     setIsLoading(true)
     try {
-      await window.api?.monitoring?.pause()
+      await apiClient.monitoring.pause()
     } catch (error) {
       console.error('Failed to pause monitoring:', error)
     } finally {
@@ -158,7 +193,7 @@ export default function Monitor(): React.JSX.Element {
   const handleResume = async (): Promise<void> => {
     setIsLoading(true)
     try {
-      await window.api?.monitoring?.resume()
+      await apiClient.monitoring.resume()
     } catch (error) {
       console.error('Failed to resume monitoring:', error)
     } finally {

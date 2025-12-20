@@ -19,14 +19,14 @@ export class DevToolsPlugin implements LiveKnowledgePlugin {
       // We'll rely on a simulated environment or try to infer from recent "active window" title if we had access.
       // Let's assume we are monitoring the project we are developing for this demo:
       // /Users/bugyaluwang/project/live-knowledge/live-knowledge-app
-      
+
       const projectPath = '/Users/bugyaluwang/project/live-knowledge/live-knowledge-app'
       const packageJsonPath = path.join(projectPath, 'package.json')
-      
+
       try {
         const content = await fs.readFile(packageJsonPath, 'utf-8')
         const pkg = JSON.parse(content)
-        
+
         return {
           currentProject: {
             name: pkg.name,

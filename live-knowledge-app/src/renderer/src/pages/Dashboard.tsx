@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Activity, Brain, BookOpen, Clock } from 'lucide-react'
 import KnowledgePanel from '../components/KnowledgePanel'
+import { apiClient } from '../lib/api-client'
 
 export default function Dashboard(): React.JSX.Element {
   const [insightCount, setInsightCount] = useState(0)
@@ -9,8 +10,9 @@ export default function Dashboard(): React.JSX.Element {
 
   useEffect(() => {
     const load = async (): Promise<void> => {
-      const insights = await window.api.database.getInsights(100)
-      const items = await window.api.database.getKnowledgeItems(100)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insights: any[] = await apiClient.database.getInsights(100)
+      const items = await apiClient.database.getKnowledgeItems(100)
       setInsightCount(insights.length)
       setKnowledgeCount(items.length)
       const latest = insights[0]?.createdAt ?? null

@@ -160,6 +160,11 @@ export class MonitoringService extends EventEmitter {
 
       console.log('Monitoring stopped')
     } catch (error) {
+      // Check if error is due to destroyed object, which can happen during app quit
+      if (error instanceof TypeError && error.message.includes('Object has been destroyed')) {
+        console.log('Monitoring stopped (window closed)')
+        return
+      }
       console.error('Error stopping monitoring:', error)
       throw error
     }
@@ -219,7 +224,9 @@ export class MonitoringService extends EventEmitter {
     this.beginContextCapture(changeResult.screenshot)
   }
 
-  private async processAggregatedContext(frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>): Promise<void> {
+  private async processAggregatedContext(
+    frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>
+  ): Promise<void> {
     if (!this.currentSession) {
       return
     }
@@ -283,21 +290,17 @@ export class MonitoringService extends EventEmitter {
       // Get prompt additions from plugins
       const pluginPromptAdditions = await this.pluginManager.getPromptAdditions(context.session)
 
-      const insights = await this.aiEngine.generateInsights(tags, context, pluginContext, pluginPromptAdditions)
+      const insights = await this.aiEngine.generateInsights(
+        tags,
+        context,
+        pluginContext,
+        pluginPromptAdditions,
+        extractedText
+      )
 
       // Store insights and present them
       for (const insight of insights) {
-        // Execute plugin actions for each insight
-        if (insight.suggestedActions) {
-          for (const action of insight.suggestedActions) {
-            // Try to execute via plugins first
-            await this.pluginManager.executeAction(action)
-          }
-        }
-
-        // Inject screenshot path into metadata
-        // Use the relatedImageIndex from AI to pick the most relevant screenshot
-        // Fallback to first screenshot if index is invalid or missing
+        // Determine primary screenshot
         let primaryScreenshot: string
         const index = (insight.metadata.relatedImageIndex as number) ?? 0
 
@@ -307,9 +310,24 @@ export class MonitoringService extends EventEmitter {
           primaryScreenshot = screenshotPaths
         }
 
+        // Inject screenshot path into metadata
         insight.metadata = {
           ...insight.metadata,
           screenshotPath: primaryScreenshot
+        }
+
+        // Execute plugin actions for each insight
+        if (insight.suggestedActions) {
+          for (const action of insight.suggestedActions) {
+            // Inject screenshot path into action payload
+            if (!action.payload) {
+              action.payload = {}
+            }
+            action.payload.screenshotPath = primaryScreenshot
+
+            // Try to execute via plugins first
+            await this.pluginManager.executeAction(action)
+          }
         }
 
         await this.createInsight(knowledgeItem.id, insight)
@@ -393,7 +411,9 @@ export class MonitoringService extends EventEmitter {
     this.contextFrames.push({ screenshotPath, text, tags })
   }
 
-  private aggregateContextFrames(frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>): {
+  private aggregateContextFrames(
+    frames: Array<{ screenshotPath: string; text: string; tags: Tag[] }>
+  ): {
     text: string
     tags: Tag[]
     primaryScreenshotPath: string
@@ -433,7 +453,10 @@ export class MonitoringService extends EventEmitter {
     return { text, tags, primaryScreenshotPath }
   }
 
-  private mergeMetadata(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
+  private mergeMetadata(
+    a: Record<string, unknown>,
+    b: Record<string, unknown>
+  ): Record<string, unknown> {
     const out: Record<string, unknown> = { ...a }
     for (const [k, v] of Object.entries(b)) {
       const ov = out[k]

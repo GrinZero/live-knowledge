@@ -19,7 +19,7 @@ class MockScreenWatcher {
   async detectChanges(): Promise<{ hasChanged: boolean; screenshot: Buffer; similarity: number }> {
     const shot = await this.captureScreen()
     const hasChanged = this.counter === 1 || this.counter % 3 === 0
-    const similarity = hasChanged ? 0.5 : (this.regionSet ? this.threshold : 0.95)
+    const similarity = hasChanged ? 0.5 : this.regionSet ? this.threshold : 0.95
     return { hasChanged, screenshot: shot, similarity }
   }
   async computeHash(imageBuffer: Buffer): Promise<string> {
@@ -28,7 +28,9 @@ class MockScreenWatcher {
   reset(): void {
     this.counter = 0
   }
-  setCaptureRegion(): void { this.regionSet = true }
+  setCaptureRegion(): void {
+    this.regionSet = true
+  }
   setSimilarityThreshold(threshold: number): void {
     this.threshold = Math.max(0, Math.min(1, threshold))
   }
@@ -68,7 +70,9 @@ class MockContentAnalyzer {
 
 class MockAIEngine {
   private cfg: unknown
-  updateConfig(cfg: unknown): void { this.cfg = cfg }
+  updateConfig(cfg: unknown): void {
+    this.cfg = cfg
+  }
   async generateInsights(tags: Tag[]): Promise<Insight[]> {
     return tags.map((t) => ({
       id: `i_${Math.random()}`,
@@ -80,7 +84,9 @@ class MockAIEngine {
       metadata: {}
     }))
   }
-  async analyzeContextFrames(frames: Array<{ imageBase64: string; text?: string }>): Promise<{ text: string; tags: Tag[] }> {
+  async analyzeContextFrames(
+    frames: Array<{ imageBase64: string; text?: string }>
+  ): Promise<{ text: string; tags: Tag[] }> {
     const text = frames.map((f) => f.text ?? '').join('\n')
     const tags: Tag[] = [
       {
@@ -98,32 +104,67 @@ class MockAIEngine {
 }
 
 class MockDatabase extends EventEmitter {
-  async initialize(): Promise<void> { return }
-  async close(): Promise<void> { return }
-  async createMonitoringSession(session: unknown): Promise<void> { this.emit('session', session as Record<string, unknown>) }
-  async updateMonitoringSessionStatus(): Promise<void> { return }
-  async createScreenshot(): Promise<void> { return }
-  async createKnowledgeItem(item: Record<string, unknown>): Promise<Record<string, unknown>> { return { id: `k_${Math.random()}`, ...item } }
-  async createTag(): Promise<void> { return }
-  async createInsight(): Promise<void> { return }
-  async createTriggerEvent(): Promise<void> { return }
-  async getKnowledgeItemsByUser(): Promise<Record<string, unknown>[]> { return [] }
-  async getInsightsByItem(): Promise<Record<string, unknown>[]> { return [] }
-  async getUserStatistics(): Promise<{ totalKnowledgeItems: number; totalInsights: number; totalActions: number; activeSessions: number }> {
+  async initialize(): Promise<void> {
+    return
+  }
+  async close(): Promise<void> {
+    return
+  }
+  async createMonitoringSession(session: unknown): Promise<void> {
+    this.emit('session', session as Record<string, unknown>)
+  }
+  async updateMonitoringSessionStatus(): Promise<void> {
+    return
+  }
+  async createScreenshot(): Promise<void> {
+    return
+  }
+  async createKnowledgeItem(item: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return { id: `k_${Math.random()}`, ...item }
+  }
+  async createTag(): Promise<void> {
+    return
+  }
+  async createInsight(): Promise<void> {
+    return
+  }
+  async createTriggerEvent(): Promise<void> {
+    return
+  }
+  async getKnowledgeItemsByUser(): Promise<Record<string, unknown>[]> {
+    return []
+  }
+  async getInsightsByItem(): Promise<Record<string, unknown>[]> {
+    return []
+  }
+  async getUserStatistics(): Promise<{
+    totalKnowledgeItems: number
+    totalInsights: number
+    totalActions: number
+    activeSessions: number
+  }> {
     return { totalKnowledgeItems: 0, totalInsights: 0, totalActions: 0, activeSessions: 1 }
   }
 }
 
 class MockPresentation {
-  async showInsight(): Promise<void> { return }
+  async showInsight(): Promise<void> {
+    return
+  }
 }
 
 import { PluginManager } from '../PluginManager'
 
 class MockPluginManager extends EventEmitter {
-  async getContexts(): Promise<Record<string, unknown>> { return {} }
-  async getPromptAdditions(): Promise<string> { return '' }
-  async executeAction(): Promise<boolean> { return false }
+  async getContexts(): Promise<Record<string, unknown>> {
+    return {}
+  }
+  async getPromptAdditions(): Promise<string> {
+    return ''
+  }
+  async executeAction(): Promise<boolean> {
+    return false
+  }
 }
 
 async function run() {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Save, Bot, RefreshCw, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { apiClient } from '../lib/api-client'
 
 const tabs = [
   { key: 'general', label: '通用' },
@@ -69,7 +70,7 @@ export default function Settings(): React.JSX.Element {
 
   const loadAIConfig = async () => {
     try {
-      const config = await window.api.settings.getAIConfig()
+      const config = await apiClient.settings.getAIConfig()
       if (config) {
         setAiConfig({
           provider: config.provider || 'gemini',
@@ -104,7 +105,7 @@ export default function Settings(): React.JSX.Element {
     setIsFetchingModels(true)
     const proxyUrl = proxy !== undefined ? proxy : aiConfig.proxyUrl
     try {
-      const models = await window.api.settings.fetchModels({ apiKey: key, provider, proxyUrl })
+      const models = await apiClient.settings.fetchModels({ apiKey: key, provider, proxyUrl })
       if (models && models.length > 0) {
         setAvailableModels(models)
         // If current model is not in list, select the first one or keep it if it's custom
@@ -125,7 +126,7 @@ export default function Settings(): React.JSX.Element {
   const handleSaveAIConfig = async () => {
     setIsLoading(true)
     try {
-      await window.api.settings.saveAIConfig({
+      await apiClient.settings.saveAIConfig({
         ...aiConfig,
         language: aiConfig.language as 'zh' | 'en'
       })

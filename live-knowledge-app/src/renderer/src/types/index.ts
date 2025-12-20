@@ -32,7 +32,7 @@ export interface Insight {
 }
 
 export interface Action {
-  type: 'create_task' | 'add_calendar' | 'save_note' | 'send_notification'
+  type: 'create_task' | 'add_calendar' | 'save_note' | 'send_notification' | string
   payload: Record<string, unknown>
   confirmationRequired: boolean
 }

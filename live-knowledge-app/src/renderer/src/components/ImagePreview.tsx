@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 interface ImagePreviewProps {
@@ -10,7 +16,13 @@ interface ImagePreviewProps {
   height?: number | string
 }
 
-export function ImagePreview({ src, alt = 'Image preview', className, width, height }: ImagePreviewProps) {
+export function ImagePreview({
+  src,
+  alt = 'Image preview',
+  className,
+  width,
+  height
+}: ImagePreviewProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -20,7 +32,7 @@ export function ImagePreview({ src, alt = 'Image preview', className, width, hei
           src={src}
           alt={alt}
           className={cn(
-            "cursor-pointer rounded-lg border border-border hover:opacity-90 transition-opacity object-cover",
+            'cursor-pointer rounded-lg border border-border hover:opacity-90 transition-opacity object-cover',
             className
           )}
           style={{ width, height }}
@@ -30,11 +42,11 @@ export function ImagePreview({ src, alt = 'Image preview', className, width, hei
         <DialogTitle className="sr-only">{alt}</DialogTitle>
         <DialogDescription className="sr-only">Full size preview of {alt}</DialogDescription>
         <div className="relative w-full h-full flex items-center justify-center">
-            <img
+          <img
             src={src}
             alt={alt}
             className="max-h-[85vh] w-auto max-w-full rounded-md object-contain shadow-2xl bg-black/50"
-            />
+          />
         </div>
       </DialogContent>
     </Dialog>

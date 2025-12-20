@@ -90,17 +90,21 @@ export class AIEngine {
             parts.push(`Frame ${idx + 1} text: ${f.text.slice(0, 1000)}`)
           }
         }
-        const response = await model.generateContent(parts as Array<string | { inlineData: { data: string; mimeType: string } }>)
+        const response = await model.generateContent(
+          parts as Array<string | { inlineData: { data: string; mimeType: string } }>
+        )
         const text = await response.response.text()
         resultJson = this.parseJsonSafe(text)
       } else if (this.provider === 'openai' && this.openai) {
         const userContent: Array<
-          | { type: 'text'; text: string }
-          | { type: 'image_url'; image_url: { url: string } }
+          { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
         > = [{ type: 'text', text: prompt }]
         frames.forEach((f, idx) => {
           if (f.text) {
-            userContent.push({ type: 'text', text: `Frame ${idx + 1} text: ${f.text.slice(0, 1000)}` })
+            userContent.push({
+              type: 'text',
+              text: `Frame ${idx + 1} text: ${f.text.slice(0, 1000)}`
+            })
           }
           userContent.push({
             type: 'image_url',
@@ -110,7 +114,10 @@ export class AIEngine {
         const response = await this.openai.chat.completions.create({
           model: this.modelName,
           messages: [
-            { role: 'system', content: 'You are a visual-temporal analysis engine. Output valid JSON only.' },
+            {
+              role: 'system',
+              content: 'You are a visual-temporal analysis engine. Output valid JSON only.'
+            },
             { role: 'user', content: userContent as unknown as string }
           ],
           max_tokens: 2000,
@@ -452,7 +459,10 @@ export class AIEngine {
 
   private parseJsonSafe(text: string): Record<string, unknown> {
     try {
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim()
+      const cleaned = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim()
       return JSON.parse(cleaned)
     } catch {
       try {
@@ -462,7 +472,9 @@ export class AIEngine {
           const slice = text.slice(start, end + 1)
           return JSON.parse(slice)
         }
-      } catch { void 0 }
+      } catch {
+        void 0
+      }
       return {}
     }
   }
@@ -492,13 +504,108 @@ export class AIEngine {
     return ''
   }
 
-  async generateInsights(tags: Tag[], context: ContextWindow, pluginContext?: Record<string, unknown>, pluginPromptAdditions?: string): Promise<Insight[]> {
+  async *generateCompletionStream(
+    prompt: string,
+    images?: string[]
+  ): AsyncGenerator<string, void, unknown> {
+    if (!this.isEnabled) {
+      yield 'AI capabilities are currently disabled.'
+      return
+    }
+
+    // Inject global language context
+    const langInstruction =
+      this.language === 'zh'
+        ? '\n\nIMPORTANT: Please provide the response in Chinese (Simplified).'
+        : '\n\nIMPORTANT: Please provide the response in English.'
+
+    const fullPrompt = prompt + langInstruction
+
+    try {
+      if (this.provider === 'gemini' && this.gemini) {
+        const model = this.gemini.getGenerativeModel({ model: this.modelName })
+
+        let input: Array<string | { inlineData: { data: string; mimeType: string } }> = [fullPrompt]
+
+        if (images && images.length > 0) {
+          const imageParts = images.map((base64) => ({
+            inlineData: {
+              data: base64,
+              mimeType: 'image/png'
+            }
+          }))
+          input = [...input, ...imageParts]
+        }
+
+        const result = await model.generateContentStream(input)
+        for await (const chunk of result.stream) {
+          const text = chunk.text()
+          if (text) yield text
+        }
+      } else if (this.provider === 'openai' && this.openai) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const messages: any[] = [
+          {
+            role: 'system',
+            content:
+              this.language === 'zh'
+                ? 'You are a helpful assistant. Output in Chinese.'
+                : 'You are a helpful assistant. Output in English.'
+          }
+        ]
+
+        if (images && images.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const content: any[] = [{ type: 'text', text: fullPrompt }]
+          images.forEach((base64) => {
+            content.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:image/png;base64,${base64}`
+              }
+            })
+          })
+          messages.push({ role: 'user', content })
+        } else {
+          messages.push({ role: 'user', content: fullPrompt })
+        }
+
+        const stream = await this.openai.chat.completions.create({
+          model: this.modelName,
+          messages: messages,
+          temperature: 0.7,
+          stream: true
+        })
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) yield content
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate completion stream:', error)
+      yield `Error generating response: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  async generateInsights(
+    tags: Tag[],
+    context: ContextWindow,
+    pluginContext?: Record<string, unknown>,
+    pluginPromptAdditions?: string,
+    extractedText?: string
+  ): Promise<Insight[]> {
     if (!this.isEnabled) {
       console.warn('AI features are disabled, generating fallback insights')
       return this.generateFallbackInsights(tags)
     }
 
-    const prompt = this.buildPrompt(tags, context, pluginContext, pluginPromptAdditions)
+    const prompt = this.buildPrompt(
+      tags,
+      context,
+      pluginContext,
+      pluginPromptAdditions,
+      extractedText
+    )
 
     try {
       let resultJson: unknown = null
@@ -592,19 +699,34 @@ export class AIEngine {
     return typeMap[tagType] || 'note'
   }
 
-  private buildPrompt(tags: Tag[], context: ContextWindow, pluginContext?: Record<string, unknown>, pluginPromptAdditions?: string): string {
+  private buildPrompt(
+    tags: Tag[],
+    context: ContextWindow,
+    pluginContext?: Record<string, unknown>,
+    pluginPromptAdditions?: string,
+    extractedText?: string
+  ): string {
     const recentInsights = this.contextStore.getRecentInsights(5)
 
     // Format plugin context
-    const pluginContextStr = pluginContext ? `\n\nExtra Context:\n${JSON.stringify(pluginContext, null, 2)}` : ''
+    const pluginContextStr = pluginContext
+      ? `\n\nExtra Context:\n${JSON.stringify(pluginContext, null, 2)}`
+      : ''
 
     // Format plugin prompt additions
-    const pluginInstructions = pluginPromptAdditions ? `\n\nCustom Detection Rules:\n${pluginPromptAdditions}` : ''
+    const pluginInstructions = pluginPromptAdditions
+      ? `\n\nCustom Detection Rules:\n${pluginPromptAdditions}`
+      : ''
+
+    const textContext = extractedText
+      ? `\n\nExtracted Screen Text (Reference):\n${extractedText.slice(0, 2000)}`
+      : ''
 
     if (this.language === 'en') {
       return `
 Screen Content Tags:
 ${JSON.stringify(tags, null, 2)}
+${textContext}
 
 Context Information:
 ${JSON.stringify(context.recentContexts, null, 2)}
@@ -625,7 +747,8 @@ Please generate structured insights and suggestions in the following format:
       "suggestedActions": [
         {
           "type": "create_task|add_calendar|save_note|send_notification|solve_problem|custom_action",
-          "description": "Suggested Action Description"
+          "description": "Suggested Action Description",
+          "payload": { "key": "value" }
         }
       ]
     }
@@ -635,7 +758,7 @@ Please generate structured insights and suggestions in the following format:
 Requirements:
 1. Each insight should have practical value.
 2. Priority assessment must be accurate.
-3. Suggested actions must be specific and actionable.
+3. Suggested actions must be specific and actionable, and include necessary data in 'payload'.
 4. Avoid repetition with recent insights.
 5. Consider context coherence.
 6. Specify 'relatedImageIndex' (0-based) to point to the most relevant screenshot frame.
@@ -647,6 +770,7 @@ ${pluginInstructions}
     return `
 屏幕内容标签：
 ${JSON.stringify(tags, null, 2)}
+${textContext}
 
 上下文信息：
 ${JSON.stringify(context.recentContexts, null, 2)}
@@ -667,7 +791,8 @@ ${JSON.stringify(recentInsights, null, 2)}
       "suggestedActions": [
         {
           "type": "create_task|add_calendar|save_note|send_notification|solve_problem|custom_action",
-          "description": "建议操作描述"
+          "description": "建议操作描述",
+          "payload": { "key": "value" }
         }
       ]
     }
@@ -677,7 +802,7 @@ ${JSON.stringify(recentInsights, null, 2)}
 要求：
 1. 每个洞察都应该有实际价值
 2. 优先级判断要准确
-3. 建议操作要具体可行
+3. 建议操作要具体可行，并在 'payload' 中包含必要数据
 4. 避免与最近的洞察重复
 5. 考虑上下文连贯性
 6. 必须指定 'relatedImageIndex'（从0开始）以指向最相关的截图帧。
@@ -718,7 +843,8 @@ ${pluginInstructions}
         generatedAt: new Date().toISOString(),
         confidence: 0.8,
         source: 'ai_engine',
-        relatedImageIndex: typeof insight.relatedImageIndex === 'number' ? insight.relatedImageIndex : 0
+        relatedImageIndex:
+          typeof insight.relatedImageIndex === 'number' ? insight.relatedImageIndex : 0
       }
     }))
   }
@@ -745,28 +871,11 @@ ${pluginInstructions}
   }
 
   private validateActionType(type: string): Action['type'] {
-    // If it's a standard type, return it.
-    // If it's a custom type (from plugins), we might need to allow it.
-    // The user wants extensibility, so we should allow any string technically, but for type safety let's stick to knowns + 'custom'.
-    // Actually, to support plugins properly, we should probably update the Action type in types/index.ts to allow string or add 'custom'.
-    // For this implementation, I will assume we can map unknown types to 'save_note' OR we just cast it if we update the type def.
-    // But I cannot easily update the shared type def and all consumers right now without risking build errors.
-    // So I will stick to the existing validation but maybe map unknown to 'save_note' with a special payload?
-    // Or better, let's just return it as is and cast to any, assuming the consumer handles it (PluginManager.executeAction).
-    const validTypes: string[] = [
-      'create_task',
-      'add_calendar',
-      'save_note',
-      'send_notification',
-      'solve_problem' // Add solve_problem to valid types
-    ]
-    if (validTypes.includes(type)) return type as Action['type']
-
-    // If not standard, we allow it pass through as 'save_note' but maybe put the real type in payload?
-    // No, that's hacky.
-    // The user explicitly wants plugins to handle actions.
-    // Let's cheat slightly and cast it, trusting that the system handles it dynamically.
-    return type as Action['type']
+    // Allow any string type to support plugins and extensibility
+    if (type && typeof type === 'string') {
+      return type as Action['type']
+    }
+    return 'save_note'
   }
 
   async queryContext(): Promise<ContextWindow> {

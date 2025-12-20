@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plug, Plus } from 'lucide-react'
+import { apiClient } from '../lib/api-client'
 
 interface Plugin {
   id: string
@@ -16,7 +17,7 @@ export default function Plugins(): React.JSX.Element {
   const loadPlugins = async () => {
     setLoading(true)
     try {
-      const list = await window.api.plugins.list()
+      const list = await apiClient.plugins.list()
       setPlugins(list)
     } catch (error) {
       console.error('Failed to load plugins:', error)
@@ -31,7 +32,7 @@ export default function Plugins(): React.JSX.Element {
 
   const togglePlugin = async (id: string, enabled: boolean) => {
     try {
-      await window.api.plugins.toggle(id, enabled)
+      await apiClient.plugins.toggle(id, enabled)
       loadPlugins()
     } catch (error) {
       console.error('Failed to toggle plugin:', error)
@@ -62,7 +63,10 @@ export default function Plugins(): React.JSX.Element {
         ) : (
           <div className="divide-y divide-gray-100">
             {plugins.map((plugin) => (
-              <div key={plugin.id} className="p-6 flex items-start justify-between hover:bg-gray-50 transition-colors">
+              <div
+                key={plugin.id}
+                className="p-6 flex items-start justify-between hover:bg-gray-50 transition-colors"
+              >
                 <div className="flex gap-4">
                   <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
                     <Plug className="w-6 h-6" />
@@ -70,7 +74,9 @@ export default function Plugins(): React.JSX.Element {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-base font-semibold text-gray-900">{plugin.name}</h3>
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">v{plugin.version}</span>
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                        v{plugin.version}
+                      </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-600 max-w-2xl">{plugin.description}</p>
                   </div>
