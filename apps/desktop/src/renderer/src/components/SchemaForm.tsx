@@ -10,7 +10,15 @@ interface SchemaFormProps {
   root?: boolean
 }
 
-function KeyValueField({ value, onChange, title }: { value: Record<string, string>, onChange: (val: Record<string, string>) => void, title?: string }) {
+function KeyValueField({
+  value,
+  onChange,
+  title
+}: {
+  value: Record<string, string>
+  onChange: (val: Record<string, string>) => void
+  title?: string
+}) {
   const pairs = Object.entries(value || {})
 
   const updatePair = (oldKey: string, newKey: string, newValue: string) => {
@@ -73,15 +81,23 @@ function KeyValueField({ value, onChange, title }: { value: Record<string, strin
             </button>
           </div>
         ))}
-        {pairs.length === 0 && (
-          <div className="text-xs text-gray-400 italic">暂无配置项</div>
-        )}
+        {pairs.length === 0 && <div className="text-xs text-gray-400 italic">暂无配置项</div>}
       </div>
     </div>
   )
 }
 
-function ArrayField({ schema, value, onChange, title }: { schema: any, value: any[], onChange: (val: any[]) => void, title?: string }) {
+function ArrayField({
+  schema,
+  value,
+  onChange,
+  title
+}: {
+  schema: any
+  value: any[]
+  onChange: (val: any[]) => void
+  title?: string
+}) {
   const items = Array.isArray(value) ? value : []
 
   const addItem = () => {
@@ -123,12 +139,12 @@ function ArrayField({ schema, value, onChange, title }: { schema: any, value: an
         {items.map((item, index) => (
           <div key={index} className="flex gap-2 items-start group">
             <div className="flex-1 min-w-0 border-l-2 border-gray-100 pl-3">
-               <FieldRenderer
-                 schema={schema.items}
-                 value={item}
-                 onChange={(val) => updateItem(index, val)}
-                 compact
-               />
+              <FieldRenderer
+                schema={schema.items}
+                value={item}
+                onChange={(val) => updateItem(index, val)}
+                compact
+              />
             </div>
             <button
               onClick={() => removeItem(index)}
@@ -149,7 +165,19 @@ function ArrayField({ schema, value, onChange, title }: { schema: any, value: an
   )
 }
 
-function FieldRenderer({ schema, value, onChange, title, compact = false }: { schema: any, value: any, onChange: (val: any) => void, title?: string, compact?: boolean }) {
+function FieldRenderer({
+  schema,
+  value,
+  onChange,
+  title,
+  compact = false
+}: {
+  schema: any
+  value: any
+  onChange: (val: any) => void
+  title?: string
+  compact?: boolean
+}) {
   const fieldType = schema.type || 'string'
   const fieldDescription = schema.description || ''
 
@@ -167,13 +195,13 @@ function FieldRenderer({ schema, value, onChange, title, compact = false }: { sc
   // Handle specific types
   if (fieldType === 'object') {
     if (schema.additionalProperties) {
-       return <KeyValueField value={value} onChange={onChange} title={title} />
+      return <KeyValueField value={value} onChange={onChange} title={title} />
     }
     // Nested Object
     return (
       <div className="space-y-2">
         {renderLabel()}
-        <div className={compact ? "" : "border border-gray-100 rounded-lg p-3 bg-gray-50/50"}>
+        <div className={compact ? '' : 'border border-gray-100 rounded-lg p-3 bg-gray-50/50'}>
           <SchemaForm schema={schema} value={value || {}} onChange={onChange} root={false} />
         </div>
       </div>
@@ -283,4 +311,3 @@ export function SchemaForm({ schema, value, onChange, root = true }: SchemaFormP
     </div>
   )
 }
-

@@ -138,7 +138,12 @@ export default function Settings(): React.JSX.Element {
     const proxyUrl = proxy !== undefined ? proxy : aiConfig.proxyUrl
     const url = baseUrl !== undefined ? baseUrl : aiConfig.baseUrl
     try {
-      const models = await apiClient.settings.fetchModels({ apiKey: key, provider, proxyUrl, baseUrl: url })
+      const models = await apiClient.settings.fetchModels({
+        apiKey: key,
+        provider,
+        proxyUrl,
+        baseUrl: url
+      })
       if (models && models.length > 0) {
         setAvailableModels(models)
         // If current model is not in list, select the first one or keep it if it's custom
@@ -264,14 +269,24 @@ export default function Settings(): React.JSX.Element {
                     onChange={(e) => setAiConfig({ ...aiConfig, apiKey: e.target.value })}
                     onBlur={() => {
                       if (aiConfig.apiKey)
-                        fetchModels(aiConfig.apiKey, aiConfig.provider, aiConfig.proxyUrl, aiConfig.baseUrl)
+                        fetchModels(
+                          aiConfig.apiKey,
+                          aiConfig.provider,
+                          aiConfig.proxyUrl,
+                          aiConfig.baseUrl
+                        )
                     }}
                     placeholder="Enter your API key..."
                     className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
                   />
                   <button
                     onClick={() =>
-                      fetchModels(aiConfig.apiKey, aiConfig.provider, aiConfig.proxyUrl, aiConfig.baseUrl)
+                      fetchModels(
+                        aiConfig.apiKey,
+                        aiConfig.provider,
+                        aiConfig.proxyUrl,
+                        aiConfig.baseUrl
+                      )
                     }
                     disabled={isFetchingModels || !aiConfig.apiKey}
                     className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"

@@ -230,7 +230,10 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle(
     'settings:fetchModels',
-    async (_, config: { apiKey: string; provider: string; proxyUrl?: string; baseUrl?: string }) => {
+    async (
+      _,
+      config: { apiKey: string; provider: string; proxyUrl?: string; baseUrl?: string }
+    ) => {
       if (!aiEngine) throw new Error('AI Engine not initialized')
       return await aiEngine.fetchModels(config)
     }

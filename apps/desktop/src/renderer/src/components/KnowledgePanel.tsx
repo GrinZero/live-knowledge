@@ -565,7 +565,9 @@ export default function KnowledgePanel(): React.JSX.Element {
                             key={insight.id}
                             className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white"
                           >
-                            <div className="font-semibold text-sm mb-1 selectable">{insight.title}</div>
+                            <div className="font-semibold text-sm mb-1 selectable">
+                              {insight.title}
+                            </div>
                             <div className="text-xs text-gray-300 leading-relaxed opacity-90 selectable">
                               {insight.content}
                             </div>

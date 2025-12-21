@@ -282,12 +282,12 @@ export class MonitoringService extends EventEmitter {
 
       // Create knowledge item
       const knowledgeItem = await this.createKnowledgeItem(tags, extractedText, screenshotPaths)
-      
+
       // Trigger event
-      await this.pluginManager.triggerEvent('knowledge_created', { 
+      await this.pluginManager.triggerEvent('knowledge_created', {
         item: knowledgeItem,
         tags,
-        screenshotPaths 
+        screenshotPaths
       })
 
       // Generate insights using AI
@@ -341,7 +341,7 @@ export class MonitoringService extends EventEmitter {
 
         // Emit insight event for real-time updates (attach screenshot path for renderer)
         this.emit('insightGenerated', { ...insight, screenshotPath: primaryScreenshot })
-        
+
         // Trigger plugin event
         await this.pluginManager.triggerEvent('insight_generated', {
           insight: { ...insight, screenshotPath: primaryScreenshot },

@@ -134,7 +134,9 @@ export default function Plugins(): React.JSX.Element {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 selectable">插件管理</h1>
-          <p className="mt-1 text-sm text-gray-500 selectable">扩展知识助手的能力，集成更多工具和工作流</p>
+          <p className="mt-1 text-sm text-gray-500 selectable">
+            扩展知识助手的能力，集成更多工具和工作流
+          </p>
         </div>
         <button
           onClick={handleInstall}
@@ -166,12 +168,16 @@ export default function Plugins(): React.JSX.Element {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-gray-900 selectable">{plugin.name}</h3>
+                      <h3 className="text-base font-semibold text-gray-900 selectable">
+                        {plugin.name}
+                      </h3>
                       <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full selectable">
                         v{plugin.version}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-600 max-w-2xl selectable">{plugin.description}</p>
+                    <p className="mt-1 text-sm text-gray-600 max-w-2xl selectable">
+                      {plugin.description}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -220,7 +226,9 @@ export default function Plugins(): React.JSX.Element {
                   <button
                     onClick={() => handleModeSwitch('form')}
                     className={`p-1.5 rounded-md transition-all ${
-                      mode === 'form' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                      mode === 'form'
+                        ? 'bg-white shadow-sm text-blue-600'
+                        : 'text-gray-500 hover:text-gray-700'
                     }`}
                     title="表单模式"
                   >
@@ -229,7 +237,9 @@ export default function Plugins(): React.JSX.Element {
                   <button
                     onClick={() => handleModeSwitch('json')}
                     className={`p-1.5 rounded-md transition-all ${
-                      mode === 'json' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                      mode === 'json'
+                        ? 'bg-white shadow-sm text-blue-600'
+                        : 'text-gray-500 hover:text-gray-700'
                     }`}
                     title="JSON 模式"
                   >

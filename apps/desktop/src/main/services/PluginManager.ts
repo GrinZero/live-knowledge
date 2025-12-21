@@ -82,25 +82,25 @@ export class PluginManager extends EventEmitter {
       if (fs.existsSync(path.join(tempDir, 'package', 'package.json'))) {
         packageRoot = path.join(tempDir, 'package')
       } else if (!fs.existsSync(path.join(tempDir, 'package.json'))) {
-         // Try to find it recursively? Or just fail.
-         // Let's look for the first package.json
-         const findPackageJson = (dir: string): string | null => {
-           const files = fs.readdirSync(dir)
-           if (files.includes('package.json')) return dir
-           for (const file of files) {
-             const fullPath = path.join(dir, file)
-             if (fs.statSync(fullPath).isDirectory()) {
-               const found = findPackageJson(fullPath)
-               if (found) return found
-             }
-           }
-           return null
-         }
-         const found = findPackageJson(tempDir)
-         if (!found) {
-            throw new Error('Invalid plugin package: package.json not found')
-         }
-         packageRoot = found
+        // Try to find it recursively? Or just fail.
+        // Let's look for the first package.json
+        const findPackageJson = (dir: string): string | null => {
+          const files = fs.readdirSync(dir)
+          if (files.includes('package.json')) return dir
+          for (const file of files) {
+            const fullPath = path.join(dir, file)
+            if (fs.statSync(fullPath).isDirectory()) {
+              const found = findPackageJson(fullPath)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        const found = findPackageJson(tempDir)
+        if (!found) {
+          throw new Error('Invalid plugin package: package.json not found')
+        }
+        packageRoot = found
       }
 
       const packageJsonContent = fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8')
@@ -137,7 +137,6 @@ export class PluginManager extends EventEmitter {
 
       // Load it
       await this.loadPluginFromFile(entryPath, true)
-
     } catch (error) {
       console.error(`Failed to install plugin from tarball ${tarPath}:`, error)
       throw error
@@ -151,8 +150,11 @@ export class PluginManager extends EventEmitter {
       const zipEntries = zip.getEntries()
 
       // Find package.json
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const packageJsonEntry = zipEntries.find((entry: any) => entry.entryName === 'package.json' || entry.entryName.endsWith('/package.json'))
+
+      const packageJsonEntry = zipEntries.find(
+        (entry: any) =>
+          entry.entryName === 'package.json' || entry.entryName.endsWith('/package.json')
+      )
       if (!packageJsonEntry) {
         throw new Error('Invalid plugin package: package.json not found')
       }
@@ -191,7 +193,6 @@ export class PluginManager extends EventEmitter {
 
       // Load it
       await this.loadPluginFromFile(entryPath, true)
-
     } catch (error) {
       console.error(`Failed to install plugin from zip ${zipPath}:`, error)
       throw error
@@ -208,7 +209,6 @@ export class PluginManager extends EventEmitter {
         // Ignore if not in cache
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const module = require(filePath)
 
       let PluginClass = module.default
@@ -216,11 +216,11 @@ export class PluginManager extends EventEmitter {
         // Try to find an exported class that looks like a plugin
         const keys = Object.keys(module)
         for (const key of keys) {
-           // Basic heuristic: check if it's a class/function
-           if (typeof module[key] === 'function' && module[key].prototype) {
-             PluginClass = module[key]
-             break
-           }
+          // Basic heuristic: check if it's a class/function
+          if (typeof module[key] === 'function' && module[key].prototype) {
+            PluginClass = module[key]
+            break
+          }
         }
       }
 
@@ -351,7 +351,10 @@ export class PluginManager extends EventEmitter {
     console.log(`Plugin registered: ${plugin.name} (${plugin.version})`)
   }
 
-  public async updatePluginConfig(pluginId: string, config: Record<string, unknown>): Promise<void> {
+  public async updatePluginConfig(
+    pluginId: string,
+    config: Record<string, unknown>
+  ): Promise<void> {
     const plugin = this.plugins.get(pluginId)
     if (!plugin) return
 

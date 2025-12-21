@@ -61,33 +61,39 @@ export default function History(): React.JSX.Element {
           <div className="divide-y divide-gray-100">
             {history.map((item) => (
               <div key={item.id} className="bg-white group">
-                <div 
+                <div
                   className="p-6 cursor-pointer hover:bg-gray-50 transition-colors flex items-start gap-4"
                   onClick={() => toggleExpand(item.id)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-md font-medium">Problem Solver</span>
-                        <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <Clock className="w-3 h-3" />
-                            {new Date(item.createdAt).toLocaleString()}
-                        </div>
+                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-md font-medium">
+                        Problem Solver
+                      </span>
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <Clock className="w-3 h-3" />
+                        {new Date(item.createdAt).toLocaleString()}
+                      </div>
                     </div>
                     <h3 className="text-base font-medium text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors">
                       {item.problem}
                     </h3>
                   </div>
                   <button className="text-gray-400 group-hover:text-gray-600">
-                    {expandedId === item.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    {expandedId === item.id ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
-                
+
                 {expandedId === item.id && (
-                    <div className="px-6 pb-6 pt-0 border-t border-gray-50 bg-gray-50/50">
-                        <div className="mt-4 prose prose-purple max-w-none text-sm bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.solution}</ReactMarkdown>
-                        </div>
+                  <div className="px-6 pb-6 pt-0 border-t border-gray-50 bg-gray-50/50">
+                    <div className="mt-4 prose prose-purple max-w-none text-sm bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.solution}</ReactMarkdown>
                     </div>
+                  </div>
                 )}
               </div>
             ))}
