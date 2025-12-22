@@ -8,3 +8,4 @@ out-smoke
 
 *.db
 .turbo
+*.tgz

@@ -1,177 +1,180 @@
+# Live Knowledge - 技术架构文档
 
-## 二、技术设计（Technical Design）
+## 1. 架构设计
 
-### 2.1 系统总体架构
+### 1.1 系统总体架构
 
-```
-┌──────────────────────────────┐
-│        Screen Watcher         │ ← 捕获视觉/DOM变更
-│ (MutationObserver / OCR / API)│
-└───────────────┬───────────────┘
-                │
-                ▼
-┌──────────────────────────────┐
-│       Content Analyzer        │ ← 提取 tag、语义结构、上下文
-│ (NLP / 模式匹配 / OCR / Regex)│
-└───────────────┬───────────────┘
-                │
-                ▼
-┌──────────────────────────────┐
-│          AI Engine            │ ← 负责理解、生成、联动逻辑
-│ (LLM, Context Store, Actions) │
-└───────────────┬───────────────┘
-                │
-                ▼
-┌──────────────────────────────┐
-│       Presentation Layer      │ ← 呈现分析结果（悬浮窗/侧栏/新屏）
-│ (Overlay / Electron / Webview)│
-└──────────────────────────────┘
-```
+```mermaid
+graph TD
+    User[用户屏幕] -->|捕获| ScreenWatcher
+    ScreenWatcher -->|变化事件| MonitoringService
 
----
+    subgraph "主进程 (后端)"
+        MonitoringService -->|编排| ContentAnalyzer
+        MonitoringService -->|事件| PluginManager
+        MonitoringService -->|存储| DatabaseService
 
-### 2.2 模块职责说明
+        ContentAnalyzer -->|OCR & 视觉| AIEngine
+        PluginManager -->|上下文 & 规则| AIEngine
 
-| 模块                      | 职责                        | 关键挑战          | 关键技术                                                            |
-| ----------------------- | ------------------------- | ------------- | --------------------------------------------------------------- |
-| **Screen Watcher**      | 监听屏幕变化或 DOM 改动            | 噪声过滤、变化节流     | `MutationObserver`, `IntersectionObserver`, `OCR`, `Vision API` |
-| **Content Analyzer**    | 从画面/文本提取结构化知识（如任务、会议、题目等） | 语义识别精度、跨应用上下文 | 正则规则、NLP、Embedding 相似度                                          |
-| **AI Engine**           | 对知识进行理解、生成响应、决策触发         | 上下文保持、一致性     | `LangGraph`, `LangChain`, `RAG`, `Action Agents`                |
-| **Presentation Layer**  | 将结果以自然方式反馈                | 不打扰用户的 UX     | Web Overlay, Electron Layer, OS-level Window                    |
+        AIEngine -->|洞察| MonitoringService
 
----
+        APIServer -->|外部 API| MonitoringService
+        APIServer -->|查询| DatabaseService
+    end
 
-### 2.3 屏幕变化触发策略（Debounce/Throttling 机制）
+    subgraph "渲染进程 (前端)"
+        PresentationService -->|IPC| OverlayUI[悬浮窗 / 仪表盘]
+        OverlayUI -->|用户操作| MonitoringService
+    end
 
-**目标**：防止频繁触发，确保“恰到好处”的响应。
+    subgraph "数据存储"
+        DatabaseService -->|读/写| SQLite[(SQLite 数据库)]
+        FileSystem -->|截图文件| LocalDisk
+    end
 
-#### 策略一：基于变化速率的动态节流
-
-* 若用户正在快速输入（如聊天），则延后触发。
-* 若页面长时间稳定，则立即触发分析。
-
-```ts
-if (lastChange < 1s) → ignore  
-if (stableTime > 2s) → trigger  
-if (changeDensity > 10/s) → debounce longer
+    subgraph "外部服务"
+        AIEngine -->|API 调用| OpenAI[OpenAI API]
+        AIEngine -->|API 调用| Gemini[Google Gemini API]
+    end
 ```
 
-#### 策略二：基于内容相似度去重
+### 1.2 核心模块职责
 
-* 用哈希或 embedding 判断前后页面差异：
-
-  ```js
-  if (cosineSimilarity(prevEmbedding, currentEmbedding) < 0.85)
-      triggerAI()
-  else
-      skip()
-  ```
-
-#### 策略三：基于场景的分级触发
-
-| 场景         | 优先级 | 触发方式             |
-| ---------- | --- | ---------------- |
-| 聊天输入       | 低   | 延迟 2~5 秒、文本稳定后触发 |
-| 会议日程/日历    | 中   | 每次新会议框检测时触发一次    |
-| 屏幕OCR/网页段落 | 高   | 检测到关键字或模板匹配时立即触发 |
+| 模块                  | 职责                                                   | 关键技术                                                  |
+| :-------------------- | :----------------------------------------------------- | :-------------------------------------------------------- |
+| **MonitoringService** | 中央协调器。管理捕获循环，协调分析流程，处理各类事件。 | Node.js `EventEmitter`, `setTimeout` 循环                 |
+| **ScreenWatcher**     | 捕获屏幕内容并检测显著变化。                           | Electron `desktopCapturer`, 感知哈希 (Perceptual Hash)    |
+| **ContentAnalyzer**   | 从图像提取文本和结构。支持“混合 OCR + AI”模式。        | `tesseract.js` (本地 OCR), `AIEngine` (视觉分析)          |
+| **AIEngine**          | 对接 LLM 进行场景理解、洞察生成和逻辑推理。            | OpenAI SDK, Google Generative AI SDK, `https-proxy-agent` |
+| **PluginManager**     | 管理插件生命周期、Hook 挂载及沙箱执行。                | 动态 `require`, `vm` (概念上), 自定义 Hook                |
+| **DatabaseService**   | 本地持久化知识、会话和配置信息。                       | `sqlite3`, SQL 查询                                       |
+| **APIServer**         | 本地 HTTP 服务器，用于外部集成和控制。                 | `express`                                                 |
 
 ---
 
-### 2.4 AI Engine 的上下文存储策略
+## 2. 技术栈
 
-| 存储层                       | 内容                  | 作用        |
-| ------------------------- | ------------------- | --------- |
-| **短期上下文（Local Memory）**   | 当前页面的语义片段、最近提取的 tag | 保持连续分析    |
-| **中期记忆（Session Memory）**  | 当天的交互、任务、会议         | 建立任务上下文   |
-| **长期知识库（Knowledge Base）** | 用户项目、文档、领域知识        | 提供长期理解与推理 |
-
----
-
-### 2.5 AI Engine 的动作类型（Action Types）
-
-| 类型       | 示例                          | 响应方式      |
-| -------- | --------------------------- | --------- |
-| **任务生成** | “明天开会讨论UI调整” → 生成任务卡        | 插入到任务管理器  |
-| **会议纪要** | 检测到会议界面 + 对话 → 自动提取摘要       | 弹窗显示纪要    |
-| **学习助手** | 用户在看教程或题目 → 实时讲解            | 侧边浮窗显示    |
-| **数据洞察** | 表格或指标面板 → 自动分析趋势            | 生成图表/文字分析 |
-| **自动标注** | 屏幕出现 PDF / 图片 / 图表 → 标注关键要素 | 覆盖层标注显示   |
+- **前端**: Electron 39 + React 19 + TypeScript + TailwindCSS 4 (Vite 6)
+- **后端**: Node.js (Electron 主进程)
+- **数据库**: SQLite (通过 `sqlite3`)
+- **AI/ML**:
+  - OpenAI GPT-4o / GPT-4-Turbo
+  - Google Gemini 1.5 Pro / Flash
+  - 本地 OCR: Tesseract.js v6
+- **通信**: Electron IPC (进程间通信), 本地 HTTP 服务器 (Express)
+- **状态管理**: Zustand + React Query (前端)
 
 ---
 
-### 2.6 用户交互层设计（UX）
+## 3. 数据流与处理管线
 
-* **低侵入式原则**：不遮挡主要操作界面
-* **即时召唤**：用户可用快捷键或鼠标悬浮调出结果
-* **多模态反馈**：文字 + 图标 + 动画提示
-* **可控自动化**：允许用户设定触发策略（实时/半自动/手动）
+### 3.1 "上下文循环" (Context Loop)
+
+1.  **检测 (Detection)**: `ScreenWatcher` 按间隔（默认 1.5s）捕获屏幕。计算感知哈希。若哈希差异 > 阈值 (0.15)，触发 **Change Event**。
+2.  **上下文捕获窗口 (Capture Window)**: `MonitoringService` 开启“捕获窗口”（如 6 秒）。它会连续捕获多帧，以理解动作的*流向*（不仅仅是静态快照）。
+3.  **聚合与分析 (Aggregation)**:
+    - 所有帧发送至 `ContentAnalyzer`。
+    - **多模态分析**: 若开启 AI，帧 + OCR 文本发送至 LLM (如 Gemini 1.5 Pro) 生成“场景摘要”并提取“标签 (Tags)”。
+    - **回退模式**: 若 AI 离线，使用 Tesseract.js 提取文本，并通过正则规则提取标签。
+4.  **插件增强 (Plugin Enrichment)**:
+    - `PluginManager.getContexts()`: 插件注入外部上下文（如“当前 IDE 文件”、“即将开始的日历事件”）。
+    - `PluginManager.getPromptAdditions()`: 插件注入自定义系统提示词规则。
+5.  **洞察生成 (Insight Generation)**:
+    - 调用 `AIEngine.generateInsights()`，输入包括：`[屏幕标签] + [屏幕文本] + [插件上下文] + [最近历史]`。
+    - LLM 生成结构化的 `Insights`（任务、笔记、建议）和 `SuggestedActions`。
+6.  **动作执行 (Action Execution)**:
+    - 洞察存入 SQLite。
+    - 若存在 `SuggestedActions`，尝试调用 `PluginManager.executeAction()`（允许插件处理“创建 Jira 工单”等操作）。
+7.  **呈现 (Presentation)**:
+    - `PresentationService` 通过 IPC 将洞察发送至前端。
+    - UI 展示非侵入式的悬浮窗或气泡。
 
 ---
 
-### 2.7 插件系统设计（Plugin Architecture）
+## 4. 插件系统架构
 
-**目标**：让输入端与消费端都具备可插拔能力；其中 `Screen Watcher` 是我们默认提供的最基础输入插件。AI Engine 除了主动推送，还向所有插件开放上下文查询接口。
+插件系统允许在不修改核心代码的情况下扩展系统能力。
 
-#### 插件类型
-
-| 类别 | 说明 | 示例 |
-| --- | --- | --- |
-| **输入插件（Input Plugins）** | 负责感知与采集 | 默认 Screen Watcher、浏览器 DOM 监听、应用适配器（VSCode/Zoom）、Webhook 数据源 |
-| **消费插件（Presentation Plugins）** | 负责知识呈现与外部同步 | Overlay/Sidebar 渲染器、Notion/Slack/Calendar 同步器、自定义可视化 |
-
-#### 插件生命周期
-
-1. 安装 → 提交 `manifest`（权限/订阅主题）
-2. 注册 → 插件中心分配 `pluginId` 与令牌
-3. 启用 → 权限校验与沙箱环境创建
-4. 订阅事件 → 通过事件总线接收主题消息
-5. 执行 → 读取上下文或推送洞察、渲染 UI
-6. 卸载 → 清理资源与取消订阅
-
-#### 统一事件总线（Topics）
-
-- `screen.change`：输入端上报的屏幕/DOM 变化
-- `content.extracted`：解析器输出的结构化内容（tags）
-- `ai.insight`：AI Engine 生成的洞察/行动建议
-- `present.render`：呈现层渲染请求（卡片/侧栏/气泡）
-- `action.execute`：用户确认后的具体执行动作
-
-#### AI Engine 插件接口
-
-- 主动推送：`POST /api/ai/push`
-  - 请求：`{ insights: Insight[], actions: Action[], source: pluginId }`
-  - 作用：由插件触发洞察进入系统调度与展示层
-- 上下文查询：`GET /api/ai/context?window=<n>&keys=<k1,k2>`
-  - 响应：`{ recentContexts: string[], knowledgeItems: KnowledgeItem[] }`
-  - 作用：所有插件在权限允许范围内查询当前上下文窗口
-
-#### 插件 Manifest 示例
+### 4.1 插件结构 (`package.json`)
 
 ```json
 {
-  "name": "live-knowledge-overlay",
-  "id": "lk.overlay.basic",
-  "version": "0.1.0",
-  "permissions": [
-    "ai.context.read",
-    "ai.push.write",
-    "present.overlay"
-  ],
-  "subscriptions": ["ai.insight", "present.render"],
-  "config": { "position": "right", "width": 320 }
+  "name": "my-plugin",
+  "main": "dist/index.js",
+  "meta": {
+    "type": "context-provider", // 或 'action-handler'
+    "permissions": ["screen.read", "ai.context"]
+  }
 }
 ```
 
-#### 权限与安全
+### 4.2 核心 Hooks
 
-- 最小权限原则：按需声明 `screen.read`、`dom.read`、`ai.context.read`、`ai.push.write`、`present.overlay` 等
-- 沙箱隔离：插件运行在受限环境，禁止直接访问敏感系统资源
-- 速率限制：对 `ai.push.write`、外部网络请求施加配额与限流
-- 审计日志：记录插件注册、订阅、推送与渲染调用
+插件需实现 `LiveKnowledgePlugin` 接口：
 
-#### 扩展点与钩子（Hooks）
+- **`hooks.getContext()`**: 在 AI 分析前调用。返回一个 JSON 对象以注入 LLM 上下文。
+  - _示例_: Git 插件返回 `{ git: { branch: "feature/login", status: "dirty" } }`。
+- **`hooks.enrichPrompt(context)`**: 在构建系统提示词时调用。返回字符串指令。
+  - _示例_: “如果你在文本中看到堆栈跟踪，请将其提取为 'Bug Report' 标签。”
+- **`hooks.onAction(action)`**: 当 AI 建议执行某动作时调用。
+  - _示例_: 处理动作 `{ type: "create_linear_issue", payload: { title: "..." } }`。
+- **`hooks.onEvent(event, payload)`**: 在系统事件（`knowledge_created`, `insight_generated`）触发时调用。
 
-- `onScreenChange(change)`：输入插件介入变化检测前/后处理
-- `onContentExtracted(tags)`：在进入 AI 前进行增强或过滤
-- `onInsightGenerated(insights)`：对洞察进行重排或去重
-- `render(presentContext)`：消费插件实现具体呈现逻辑
+### 4.3 插件生命周期
+
+1.  **发现**: 从 `userData/plugins` 目录加载插件（支持 `.zip`, `.tgz`, 或文件夹）。
+2.  **注册**: `PluginManager` 加载 JS 模块并注册实例。
+3.  **初始化**: 调用 `plugin.initialize(context)`，提供 `ipc`, `http` (路由), 和 `ai` 能力的访问权限。
+
+---
+
+## 5. 数据库设计 (SQLite)
+
+### 5.1 关键表结构
+
+- **`monitoring_sessions`**: 记录使用会话（开始/结束时间、配置）。
+- **`knowledge_items`**: 捕获信息的原始单元。
+  - `type`: 'meeting', 'task', 'code', 'error' 等。
+  - `content`: 完整文本或摘要。
+  - `metadata`: JSON（截图路径、来源应用）。
+- **`tags`**: 从知识条目中提取的结构化实体（如具体日期、人名）。
+- **`insights`**: AI 基于知识条目得出的高层结论。
+  - `priority`: 'high', 'medium', 'low'。
+  - `suggested_actions`: 可执行步骤的 JSON 数组。
+- **`screenshots`**: 磁盘上图片文件的引用。
+
+---
+
+## 6. API 参考 (本地服务器)
+
+应用运行一个本地 Express 服务器（默认端口 3000）用于外部控制。
+
+### 6.1 监控控制
+
+- `POST /api/monitor/start`: 开始监控会话。
+- `POST /api/monitor/stop`: 停止监控。
+- `GET /api/monitor/status`: 获取当前状态和统计。
+
+### 6.2 知识与洞察
+
+- `GET /api/knowledge/recent`: 获取最近捕获的条目。
+- `GET /api/insights/recent`: 获取最近的 AI 洞察。
+- `GET /api/search?q=...`: 对本地知识进行语义/文本搜索。
+
+### 6.3 插件管理
+
+- `GET /api/plugins`: 列出已安装插件。
+- `POST /api/plugins/:id/toggle`: 启用/禁用插件。
+- `POST /api/plugins/install`: 从文件路径安装插件。
+
+---
+
+## 7. 安全与隐私
+
+- **本地存储**: 所有截图和数据库记录均存储在用户的本地 AppData 文件夹中。
+- **可控 AI 访问**:
+  - 用户需提供自己的 API Key (OpenAI/Gemini)。
+  - 仅在设置开启时，图片才会发送给 AI 提供商。
+  - 未来将实现“隐私模式”，暂停对特定应用的捕获。
+- **插件沙箱**: 插件目前在主进程运行，但应经过审计。未来版本将引入隔离的执行上下文。

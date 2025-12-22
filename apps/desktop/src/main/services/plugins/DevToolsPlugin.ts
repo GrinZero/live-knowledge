@@ -1,4 +1,4 @@
-import { LiveKnowledgePlugin } from '../../types/plugin'
+import { LiveKnowledgePlugin, Action } from '@live-knowledge/plugin-sdk'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -44,7 +44,8 @@ export class DevToolsPlugin implements LiveKnowledgePlugin {
     },
 
     enrichPrompt: async (context: Record<string, unknown>) => {
-      const project = (context as any).currentProject
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const project = context['currentProject'] as any
       if (project) {
         return `
 [DevTools Plugin]
@@ -57,7 +58,7 @@ If the screen shows UI bugs, suggest "check_renderer_logs".
       return undefined
     },
 
-    onAction: async (action: any) => {
+    onAction: async (action: Action) => {
       if (action.type === 'run_npm_install') {
         console.log('[DevTools Plugin] Executing npm install (simulated)...')
         return true

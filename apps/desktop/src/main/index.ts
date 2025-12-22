@@ -12,7 +12,6 @@ import { PresentationService } from './services/PresentationService'
 import { APIServer } from './services/APIServer'
 import { PluginManager } from './services/PluginManager'
 import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
-import { ProblemSolverPlugin } from './services/plugins/ProblemSolverPlugin'
 import { pathToFileURL } from 'url'
 
 // Inject system proxy settings if provided in env
@@ -124,7 +123,6 @@ async function initializeServices(): Promise<void> {
 
     // Register default plugins
     await pluginManager.registerPlugin(new DevToolsPlugin())
-    await pluginManager.registerPlugin(new ProblemSolverPlugin())
 
     // Load installed plugins
     await pluginManager.initialize()
@@ -279,6 +277,11 @@ function setupIpcHandlers(): void {
   ipcMain.handle('plugins:list', async () => {
     if (!pluginManager) return []
     return pluginManager.getPluginStatus()
+  })
+
+  ipcMain.handle('plugins:getRendererPlugins', async () => {
+    if (!pluginManager) return []
+    return pluginManager.getRendererPlugins()
   })
 
   ipcMain.handle('plugins:toggle', async (_, id: string, enabled: boolean) => {

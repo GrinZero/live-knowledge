@@ -7,7 +7,7 @@ export const apiClient = {
       if (!res.ok) throw new Error('Failed to fetch AI config')
       return res.json()
     },
-    saveAIConfig: async (config: any) => {
+    saveAIConfig: async (config: Record<string, unknown>) => {
       const res = await fetch(`${BASE_URL}/settings/ai-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -16,7 +16,7 @@ export const apiClient = {
       if (!res.ok) throw new Error('Failed to save AI config')
       return res.json()
     },
-    fetchModels: async (config: any) => {
+    fetchModels: async (config: Record<string, unknown>) => {
       const res = await fetch(`${BASE_URL}/settings/fetch-models`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -32,7 +32,7 @@ export const apiClient = {
       if (!res.ok) throw new Error('Failed to fetch status')
       return res.json()
     },
-    start: async (config: any) => {
+    start: async (config: Record<string, unknown>) => {
       const res = await fetch(`${BASE_URL}/monitoring/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,7 +79,7 @@ export const apiClient = {
       if (!res.ok) throw new Error('Failed to fetch user')
       return res.json()
     },
-    createUser: async (userData: any) => {
+    createUser: async (userData: Record<string, unknown>) => {
       const res = await fetch(`${BASE_URL}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,59 +117,6 @@ export const apiClient = {
       })
       if (!res.ok) throw new Error('Failed to update plugin config')
       return res.json()
-    }
-  },
-  solver: {
-    getContext: async (id: string) => {
-      const res = await fetch(`${BASE_URL}/plugins/problem-solver/context?id=${id}`)
-      if (!res.ok) throw new Error('Failed to fetch solver context')
-      return res.json()
-    },
-    getHistory: async () => {
-      const res = await fetch(`${BASE_URL}/plugins/problem-solver/history`)
-      if (!res.ok) throw new Error('Failed to fetch solver history')
-      return res.json()
-    },
-    generateStream: async (
-      problem: string,
-      onChunk: (chunk: string) => void,
-      screenshotPath?: string,
-      signal?: AbortSignal
-    ) => {
-      const res = await fetch(`${BASE_URL}/plugins/problem-solver/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problem, screenshotPath }),
-        signal
-      })
-
-      if (!res.ok || !res.body) {
-        let errorMsg = 'Failed to generate solution'
-        try {
-          const errorData = await res.json()
-          if (errorData && errorData.error) {
-            errorMsg = `Server Error: ${errorData.error}`
-          }
-        } catch {
-          errorMsg = `Server Error: ${res.status} ${res.statusText}`
-        }
-        throw new Error(errorMsg)
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const text = decoder.decode(value, { stream: true })
-        onChunk(text)
-      }
-      // Flush any remaining text from the decoder
-      const finalText = decoder.decode()
-      if (finalText) {
-        onChunk(finalText)
-      }
     }
   }
 }

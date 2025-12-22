@@ -66,6 +66,7 @@ const api = {
   // Plugin APIs
   plugins: {
     list: () => ipcRenderer.invoke('plugins:list'),
+    getRendererPlugins: () => ipcRenderer.invoke('plugins:getRendererPlugins'),
     toggle: (id: string, enabled: boolean) => ipcRenderer.invoke('plugins:toggle', id, enabled),
     install: (path: string) => ipcRenderer.invoke('plugins:install', path),
     uninstall: (id: string) => ipcRenderer.invoke('plugins:uninstall', id),

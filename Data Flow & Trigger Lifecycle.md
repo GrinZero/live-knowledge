@@ -1,4 +1,3 @@
-
 ## 三、数据流与触发流程（Data Flow & Trigger Lifecycle）
 
 这一部分的目标是定义 **从“屏幕变化”到“AI 输出结果”** 的完整生命周期，确保系统既响应灵敏，又稳定可控。
@@ -42,14 +41,14 @@
 
 ### 3.2 事件流阶段定义
 
-| 阶段          | 名称                     | 描述                | 核心逻辑                              |
-| ----------- | ---------------------- | ----------------- | --------------------------------- |
-| **Stage 1** | 变化检测 (Detection)       | 捕获界面或内容的变化        | DOM diff、OCR、截图 hash、window focus |
-| **Stage 2** | 稳定判断 (Stabilization)   | 判断是否为稳定状态（避免频繁触发） | 时间阈值 + 相似度计算                      |
-| **Stage 3** | 内容提取 (Extraction)      | 从文本/视觉中抽取 tag     | NLP 模型、规则模板、LLM 解析                |
-| **Stage 4** | 语义分析 (Analysis)        | AI 理解场景意图、生成响应    | context embedding + reasoning     |
-| **Stage 5** | 动作执行 (Action Dispatch) | 根据意图选择对应动作        | 任务生成、摘要生成、洞察展示                    |
-| **Stage 6** | 展示反馈 (Presentation)    | 将结果可视化呈现给用户       | 弹窗、侧边栏、语音、动画等                     |
+| 阶段        | 名称                       | 描述                               | 核心逻辑                               |
+| ----------- | -------------------------- | ---------------------------------- | -------------------------------------- |
+| **Stage 1** | 变化检测 (Detection)       | 捕获界面或内容的变化               | DOM diff、OCR、截图 hash、window focus |
+| **Stage 2** | 稳定判断 (Stabilization)   | 判断是否为稳定状态（避免频繁触发） | 时间阈值 + 相似度计算                  |
+| **Stage 3** | 内容提取 (Extraction)      | 从文本/视觉中抽取 tag              | NLP 模型、规则模板、LLM 解析           |
+| **Stage 4** | 语义分析 (Analysis)        | AI 理解场景意图、生成响应          | context embedding + reasoning          |
+| **Stage 5** | 动作执行 (Action Dispatch) | 根据意图选择对应动作               | 任务生成、摘要生成、洞察展示           |
+| **Stage 6** | 展示反馈 (Presentation)    | 将结果可视化呈现给用户             | 弹窗、侧边栏、语音、动画等             |
 
 ---
 
@@ -132,22 +131,22 @@
 
 ### 3.5 事件防抖与重复触发控制
 
-| 机制        | 说明                |
-| --------- | ----------------- |
-| **时间防抖**  | 同一屏幕片段内 3 秒内不重复触发 |
-| **语义哈希**  | 对提取内容计算哈希，相同则忽略   |
-| **上下文缓存** | 最近 5 次相似输出不重复分析   |
-| **用户交互锁** | 在展示层交互期间暂停触发      |
+| 机制           | 说明                            |
+| -------------- | ------------------------------- |
+| **时间防抖**   | 同一屏幕片段内 3 秒内不重复触发 |
+| **语义哈希**   | 对提取内容计算哈希，相同则忽略  |
+| **上下文缓存** | 最近 5 次相似输出不重复分析     |
+| **用户交互锁** | 在展示层交互期间暂停触发        |
 
 ---
 
 ### 3.6 性能与容错设计
 
-| 问题        | 策略                       |
-| --------- | ------------------------ |
-| 高频 DOM 变化 | 批量合并、差分处理                |
-| 大量 OCR 请求 | 缓存相似图像区域结果               |
-| AI 响应超时   | 采用回退策略（简化模型或跳过）          |
+| 问题          | 策略                             |
+| ------------- | -------------------------------- |
+| 高频 DOM 变化 | 批量合并、差分处理               |
+| 大量 OCR 请求 | 缓存相似图像区域结果             |
+| AI 响应超时   | 采用回退策略（简化模型或跳过）   |
 | 内存积压      | 周期性清理缓存与 embedding store |
 
 ---
@@ -156,14 +155,14 @@
 
 **说明**：事件流的每一阶段均提供插件扩展点。输入端支持可插拔采集（默认提供 `Screen Watcher`），消费端支持可插拔呈现（Overlay/Sidebar/Bubble）。AI Engine 面向所有插件开放上下文查询接口。
 
-| 阶段 | 钩子 | 触发时机 | 插件能力 |
-| --- | --- | --- | --- |
-| Detection | `onScreenChange(change)` | 变化捕获后（或前置过滤） | 输入插件可上报/过滤变化，推送 `screen.change` |
-| Stabilization | `onStabilize(state)` | 判断稳定前后 | 可调整阈值或暂停后续流程 |
-| Extraction | `onContentExtracted(tags)` | 提取完成 | 可增强/去重/补充 metadata，推送 `content.extracted` |
-| Analysis | `onInsightGenerated(insights)` | AI 输出后 | 可重排/合并/降噪，推送 `ai.insight` |
-| Dispatch | `onActionDispatch(action)` | 行动选择时 | 可拦截或替换行动目标（如同步到外部系统） |
-| Presentation | `render(presentContext)` | 展示层渲染时 | 消费插件实现自定义 UI，响应 `present.render` |
+| 阶段          | 钩子                           | 触发时机                 | 插件能力                                            |
+| ------------- | ------------------------------ | ------------------------ | --------------------------------------------------- |
+| Detection     | `onScreenChange(change)`       | 变化捕获后（或前置过滤） | 输入插件可上报/过滤变化，推送 `screen.change`       |
+| Stabilization | `onStabilize(state)`           | 判断稳定前后             | 可调整阈值或暂停后续流程                            |
+| Extraction    | `onContentExtracted(tags)`     | 提取完成                 | 可增强/去重/补充 metadata，推送 `content.extracted` |
+| Analysis      | `onInsightGenerated(insights)` | AI 输出后                | 可重排/合并/降噪，推送 `ai.insight`                 |
+| Dispatch      | `onActionDispatch(action)`     | 行动选择时               | 可拦截或替换行动目标（如同步到外部系统）            |
+| Presentation  | `render(presentContext)`       | 展示层渲染时             | 消费插件实现自定义 UI，响应 `present.render`        |
 
 #### 事件总线主题（与插件交互）
 

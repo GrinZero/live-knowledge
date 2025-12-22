@@ -10,31 +10,31 @@ graph TD
     D --> E[Presentation Layer]
     D --> F[Context Memory]
     D --> G[Knowledge Graph]
-    
+
     subgraph "Electron 主进程"
         B
         H[系统API调用]
     end
-    
+
     subgraph "渲染进程"
         C
         D
         E
         F
     end
-    
+
     subgraph "数据存储"
         G
         I[SQLite本地存储]
         J[Supabase云端]
     end
-    
+
     subgraph "外部服务"
         K[LLM API]
         L[OCR服务]
         M[第三方集成]
     end
-    
+
     D --> K
     C --> L
     G --> M
@@ -44,30 +44,30 @@ graph TD
 
 ## 2. 技术栈描述
 
-* **前端**: Electron + React\@latest + TypeScript + TailwindCSS
+- **前端**: Electron + React\@latest + TypeScript + TailwindCSS
 
-* **初始化工具**: electron-vite（https://electron-vite.org/guide/）
+- **初始化工具**: electron-vite（https://electron-vite.org/guide/）
 
-* **后端**: Node.js + Express (本地API服务)
+- **后端**: Node.js + Express (本地API服务)
 
-* **数据库**: SQLite (本地) + Supabase (云端同步)
+- **数据库**: SQLite (本地) + Supabase (云端同步)
 
-* **AI/ML**: OpenAI GPT-4 API + Hugging Face Transformers
+- **AI/ML**: OpenAI GPT-4 API + Hugging Face Transformers
 
-* **OCR**: Tesseract.js + PaddleOCR
+- **OCR**: Tesseract.js + PaddleOCR
 
-* **状态管理**: Zustand + React Query
+- **状态管理**: Zustand + React Query
 
-* **UI组件**: Radix UI + Lucide React图标
+- **UI组件**: Radix UI + Lucide React图标
 
 ## 3. 路由定义
 
-| 路由         | 用途                   |
-| ---------- | -------------------- |
-| /          | 主监控界面，显示实时屏幕监控状态     |
-| /dashboard | 知识展示面板，显示AI生成的洞察和建议  |
-| /settings  | 系统设置页面，配置触发规则和集成选项   |
-| /history   | 历史记录页面，查看过往提取的知识点    |
+| 路由       | 用途                                     |
+| ---------- | ---------------------------------------- |
+| /          | 主监控界面，显示实时屏幕监控状态         |
+| /dashboard | 知识展示面板，显示AI生成的洞察和建议     |
+| /settings  | 系统设置页面，配置触发规则和集成选项     |
+| /history   | 历史记录页面，查看过往提取的知识点       |
 | /overlay   | 悬浮窗展示层，用于在其他应用上层显示结果 |
 
 ## 4. API定义
@@ -172,26 +172,26 @@ graph TD
     B --> D[内容分析服务]
     B --> E[AI处理服务]
     B --> F[数据同步服务]
-    
+
     subgraph "服务层"
         C
         D
         E
         F
     end
-    
+
     subgraph "数据访问层"
         G[SQLite Repository]
         H[Supabase Client]
         I[文件系统服务]
     end
-    
+
     subgraph "外部集成"
         J[LLM API客户端]
         K[OCR引擎]
         L[第三方API]
     end
-    
+
     D --> G
     E --> H
     F --> I
@@ -214,7 +214,7 @@ erDiagram
     KNOWLEDGE_ITEM ||--o{ TAG : contains
     KNOWLEDGE_ITEM ||--o{ INSIGHT : generates
     KNOWLEDGE_ITEM ||--o{ USER_ACTION : triggers
-    
+
     USER {
         string id PK
         string email UK
@@ -223,7 +223,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     MONITORING_SESSION {
         string id PK
         string user_id FK
@@ -232,7 +232,7 @@ erDiagram
         datetime started_at
         datetime ended_at
     }
-    
+
     SCREENSHOT {
         string id PK
         string session_id FK
@@ -240,7 +240,7 @@ erDiagram
         json metadata
         datetime captured_at
     }
-    
+
     TRIGGER_EVENT {
         string id PK
         string session_id FK
@@ -249,7 +249,7 @@ erDiagram
         float confidence
         datetime triggered_at
     }
-    
+
     KNOWLEDGE_ITEM {
         string id PK
         string user_id FK
@@ -259,7 +259,7 @@ erDiagram
         json metadata
         datetime created_at
     }
-    
+
     TAG {
         string id PK
         string item_id FK
@@ -267,7 +267,7 @@ erDiagram
         string value
         float confidence
     }
-    
+
     INSIGHT {
         string id PK
         string item_id FK
@@ -276,7 +276,7 @@ erDiagram
         json suggested_actions
         string priority
     }
-    
+
     USER_ACTION {
         string id PK
         string item_id FK
@@ -285,7 +285,7 @@ erDiagram
         string status
         datetime executed_at
     }
-    
+
     INTEGRATION_CONFIG {
         string id PK
         string user_id FK
@@ -399,44 +399,47 @@ class ScreenWatcher {
   private captureRegion: Rectangle;
   private lastScreenshot: Buffer;
   private similarityThreshold: number = 0.85;
-  
+
   async captureScreen(): Promise<Buffer> {
     // 使用Electron的desktopCapturer
     const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 }
+      types: ["screen"],
+      thumbnailSize: { width: 1920, height: 1080 },
     });
-    
+
     return sources[0].thumbnail.toPNG();
   }
-  
+
   async detectChanges(): Promise<boolean> {
     const currentScreenshot = await this.captureScreen();
-    
+
     if (!this.lastScreenshot) {
       this.lastScreenshot = currentScreenshot;
       return true;
     }
-    
+
     const similarity = await this.calculateSimilarity(
       this.lastScreenshot,
-      currentScreenshot
+      currentScreenshot,
     );
-    
+
     const hasSignificantChange = similarity < this.similarityThreshold;
-    
+
     if (hasSignificantChange) {
       this.lastScreenshot = currentScreenshot;
     }
-    
+
     return hasSignificantChange;
   }
-  
-  private async calculateSimilarity(img1: Buffer, img2: Buffer): Promise<number> {
+
+  private async calculateSimilarity(
+    img1: Buffer,
+    img2: Buffer,
+  ): Promise<number> {
     // 使用感知哈希算法计算图像相似度
     const hash1 = await this.calculatePerceptualHash(img1);
     const hash2 = await this.calculatePerceptualHash(img2);
-    
+
     return this.hammingDistance(hash1, hash2) / 64; // 64位哈希
   }
 }
@@ -447,34 +450,34 @@ class ScreenWatcher {
 ```typescript
 class ContentExtractor {
   private tesseractWorker: Tesseract.Worker;
-  
+
   async extractTextFromImage(imageBuffer: Buffer): Promise<string> {
     try {
       const result = await this.tesseractWorker.recognize(imageBuffer, {
-        lang: 'chi_sim+eng', // 中英文支持
+        lang: "chi_sim+eng", // 中英文支持
         oem: 1, // LSTM OCR引擎
         psm: 6, // 统一文本块
       });
-      
+
       return result.data.text;
     } catch (error) {
-      console.error('OCR extraction failed:', error);
+      console.error("OCR extraction failed:", error);
       throw error;
     }
   }
-  
+
   async extractStructuredContent(text: string): Promise<Tag[]> {
     const tags: Tag[] = [];
-    
+
     // 使用正则表达式和NLP模型提取结构化信息
     const patterns = {
       meeting: /会议|meeting|讨论|discuss/gi,
       task: /任务|task|待办|todo|完成|complete/gi,
       schedule: /日程|schedule|时间|time|日期|date/gi,
       problem: /问题|problem|bug|错误|error/gi,
-      data: /数据|data|表格|table|图表|chart/gi
+      data: /数据|data|表格|table|图表|chart/gi,
     };
-    
+
     for (const [type, pattern] of Object.entries(patterns)) {
       if (pattern.test(text)) {
         tags.push({
@@ -482,11 +485,11 @@ class ContentExtractor {
           title: this.extractTitle(text, type),
           content: text,
           confidence: this.calculateConfidence(text, pattern),
-          metadata: { extractedAt: new Date().toISOString() }
+          metadata: { extractedAt: new Date().toISOString() },
         });
       }
     }
-    
+
     return tags;
   }
 }
@@ -498,37 +501,40 @@ class ContentExtractor {
 class AIEngine {
   private openai: OpenAI;
   private contextStore: ContextMemory;
-  
-  async generateInsights(tags: Tag[], context: ContextWindow): Promise<Insight[]> {
+
+  async generateInsights(
+    tags: Tag[],
+    context: ContextWindow,
+  ): Promise<Insight[]> {
     const prompt = this.buildPrompt(tags, context);
-    
+
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: "gpt-4-turbo-preview",
         messages: [
           {
-            role: 'system',
+            role: "system",
             content: `你是一个智能知识助手，能够根据屏幕内容提取有价值的洞察和行动建议。
-            请分析提供的内容，并生成结构化的洞察和建议。`
+            请分析提供的内容，并生成结构化的洞察和建议。`,
           },
           {
-            role: 'user',
-            content: prompt
-          }
+            role: "user",
+            content: prompt,
+          },
         ],
         temperature: 0.3,
         max_tokens: 1000,
-        response_format: { type: 'json_object' }
+        response_format: { type: "json_object" },
       });
-      
+
       const result = JSON.parse(response.choices[0].message.content);
       return this.parseInsights(result);
     } catch (error) {
-      console.error('AI insight generation failed:', error);
+      console.error("AI insight generation failed:", error);
       throw error;
     }
   }
-  
+
   private buildPrompt(tags: Tag[], context: ContextWindow): string {
     return `
     屏幕内容标签：${JSON.stringify(tags, null, 2)}
@@ -561,15 +567,15 @@ class AIEngine {
 
 ### 8.1 环境要求
 
-* Node.js >= 18.0.0
+- Node.js >= 18.0.0
 
-* Electron >= 28.0.0
+- Electron >= 28.0.0
 
-* 内存: 最少4GB，推荐8GB
+- 内存: 最少4GB，推荐8GB
 
-* 存储: 最少1GB可用空间
+- 存储: 最少1GB可用空间
 
-* 网络: 稳定的互联网连接（用于AI API调用）
+- 网络: 稳定的互联网连接（用于AI API调用）
 
 ### 8.2 构建配置
 
@@ -581,11 +587,7 @@ class AIEngine {
     "directories": {
       "output": "dist"
     },
-    "files": [
-      "build/**/*",
-      "node_modules/**/*",
-      "package.json"
-    ],
+    "files": ["build/**/*", "node_modules/**/*", "package.json"],
     "mac": {
       "category": "public.app-category.productivity",
       "target": "dmg"
@@ -602,13 +604,13 @@ class AIEngine {
 
 ### 8.3 安全配置
 
-* API密钥加密存储
+- API密钥加密存储
 
-* 用户数据本地加密
+- 用户数据本地加密
 
-* 支持代理配置
+- 支持代理配置
 
-* 自动更新机制
+- 自动更新机制
 
 ## 9. 插件架构与接口
 

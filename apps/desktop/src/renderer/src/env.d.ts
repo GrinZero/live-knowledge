@@ -3,9 +3,18 @@
 import type { Insight, MonitorConfig, MonitoringSession, KnowledgeItem, User } from './types'
 import type { PresentationConfig } from '../../main/services/PresentationService'
 
+import type { RendererPlugin } from './plugin-registry'
+
 declare global {
   interface Window {
     electron: { process: { versions: Record<string, string> } }
+    LiveKnowledge: {
+      registerPlugin: (plugin: RendererPlugin) => void
+    }
+    React: typeof import('react')
+    ReactDOM: typeof import('react-dom')
+    ReactRouterDOM: typeof import('react-router-dom')
+    ReactJSXRuntime: typeof import('react/jsx-runtime')
     api: {
       monitoring: {
         start: (config: MonitorConfig) => Promise<MonitoringSession>
@@ -98,6 +107,7 @@ declare global {
             canUninstall?: boolean
           }>
         >
+        getRendererPlugins: () => Promise<Array<{ id: string; scriptPath: string }>>
         toggle: (id: string, enabled: boolean) => Promise<boolean>
         install: (path: string) => Promise<boolean>
         uninstall: (id: string) => Promise<boolean>

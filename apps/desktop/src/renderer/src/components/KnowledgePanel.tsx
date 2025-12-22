@@ -78,6 +78,7 @@ export default function KnowledgePanel(): React.JSX.Element {
   useEffect(() => {
     filterAndSortItems()
     setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [knowledgeItems, searchQuery, selectedType, sortBy, sortOrder])
 
   const loadKnowledgeItems = async () => {

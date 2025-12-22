@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React from 'react'
 import { Plus, Trash2, X } from 'lucide-react'
 
 interface SchemaFormProps {

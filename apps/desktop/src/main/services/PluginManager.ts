@@ -22,6 +22,8 @@ export class PluginManager extends EventEmitter {
   private pluginsDir: string
   // Track plugin paths to identify which are external/uninstallable
   private pluginPaths: Map<string, string> = new Map()
+  // Track renderer entry points for plugins
+  private rendererEntries: Map<string, string> = new Map()
 
   constructor(aiEngine: AIEngine, databaseService: DatabaseService) {
     super()
@@ -152,8 +154,9 @@ export class PluginManager extends EventEmitter {
       // Find package.json
 
       const packageJsonEntry = zipEntries.find(
-        (entry: any) =>
-          entry.entryName === 'package.json' || entry.entryName.endsWith('/package.json')
+        (
+          entry: any // eslint-disable-line @typescript-eslint/no-explicit-any
+        ) => entry.entryName === 'package.json' || entry.entryName.endsWith('/package.json')
       )
       if (!packageJsonEntry) {
         throw new Error('Invalid plugin package: package.json not found')
@@ -209,6 +212,7 @@ export class PluginManager extends EventEmitter {
         // Ignore if not in cache
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const module = require(filePath)
 
       let PluginClass = module.default
@@ -241,6 +245,32 @@ export class PluginManager extends EventEmitter {
 
       this.pluginPaths.set(plugin.id, filePath)
 
+      // Try to find package.json to register renderer entry
+      try {
+        const findPackageJson = (dir: string): string | null => {
+          if (fs.existsSync(path.join(dir, 'package.json'))) {
+            return path.join(dir, 'package.json')
+          }
+          const parent = path.dirname(dir)
+          if (parent === dir) return null
+          return findPackageJson(parent)
+        }
+
+        const packageJsonPath = findPackageJson(path.dirname(filePath))
+        if (packageJsonPath) {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+          if (packageJson.renderer) {
+            const rendererPath = path.resolve(path.dirname(packageJsonPath), packageJson.renderer)
+            if (fs.existsSync(rendererPath)) {
+              this.rendererEntries.set(plugin.id, rendererPath)
+              console.log(`Registered renderer entry for plugin ${plugin.id}: ${rendererPath}`)
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to check renderer entry for plugin ${plugin.id}`, e)
+      }
+
       console.log(`Successfully loaded plugin from ${filePath}`)
     } catch (error) {
       console.error(`Failed to load plugin from ${filePath}:`, error)
@@ -267,6 +297,7 @@ export class PluginManager extends EventEmitter {
       this.enabledPlugins.delete(pluginId)
       this.pluginRouters.delete(pluginId)
       this.pluginPaths.delete(pluginId)
+      this.rendererEntries.delete(pluginId)
 
       // 2. Remove from DB
       await this.databaseService.removeInstalledPlugin(pluginPath)
@@ -406,6 +437,17 @@ export class PluginManager extends EventEmitter {
       configSchema: p.configSchema,
       canUninstall: this.pluginPaths.has(p.id)
     }))
+  }
+
+  public getRendererPlugins(): Array<{ id: string; scriptPath: string }> {
+    return Array.from(this.rendererEntries.entries())
+      .filter(([id]) => this.enabledPlugins.has(id))
+      .map(([id, scriptPath]) => ({
+        id,
+        // Convert to media URL for usage in renderer to bypass security restrictions
+        // We use the custom media:// protocol which is registered in main/index.ts
+        scriptPath: `media://${scriptPath}`
+      }))
   }
 
   // Hook Execution Methods

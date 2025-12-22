@@ -1,44 +1,50 @@
-import { useState, useEffect } from 'react'
-import { apiClient } from '../lib/api-client'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { ChevronDown, ChevronUp, History as HistoryIcon, Clock, MessageSquare } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  Clock,
+  MessageSquare,
+  History as HistoryIcon,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { solverApi } from "./api";
 
 interface HistoryItem {
-  id: string
-  problem: string
-  solution: string
-  createdAt: string
-  screenshotPath?: string
+  id: string;
+  problem: string;
+  solution: string;
+  createdAt: string;
+  screenshotPath?: string;
 }
 
-export default function History(): React.JSX.Element {
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+export const SolverHistory: React.FC = () => {
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHistory()
-  }, [])
+    loadHistory();
+  }, []);
 
   const loadHistory = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const data = await apiClient.solver.getHistory()
-      setHistory(data)
+      const data = await solverApi.getHistory();
+      setHistory(data);
     } catch (error) {
-      console.error('Failed to load history:', error)
+      console.error("Failed to load history:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id)
-  }
+    setExpandedId(expandedId === id ? null : id);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
           <HistoryIcon className="w-6 h-6" />
@@ -91,7 +97,9 @@ export default function History(): React.JSX.Element {
                 {expandedId === item.id && (
                   <div className="px-6 pb-6 pt-0 border-t border-gray-50 bg-gray-50/50">
                     <div className="mt-4 prose prose-purple max-w-none text-sm bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.solution}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {item.solution}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 )}
@@ -101,5 +109,5 @@ export default function History(): React.JSX.Element {
         )}
       </div>
     </div>
-  )
-}
+  );
+};
