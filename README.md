@@ -1,5 +1,7 @@
 # Live Knowledge
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GrinZero/live-knowledge)
+
 [English](#english) | [中文](#chinese)
 
 <a name="english"></a>
