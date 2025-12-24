@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Activity, Brain, BookOpen, Clock } from 'lucide-react'
+import { Brain, BookOpen, Clock, Activity } from 'lucide-react'
+import { StatCard } from '@/components/ui/stat-card'
 import KnowledgePanel from '../components/KnowledgePanel'
 import { apiClient } from '../lib/api-client'
 
@@ -22,73 +23,51 @@ export default function Dashboard(): React.JSX.Element {
   }, [])
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="space-y-6">
+      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-base text-gray-500">
-          Real-time system monitoring and knowledge insights.
-        </p>
+        <h1 className="text-2xl font-semibold text-gray-900">知识库</h1>
+        <p className="text-sm text-gray-500 mt-1">管理和浏览 AI 提取的知识条目</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="p-6 rounded-2xl border border-gray-200 bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center border border-purple-100">
-                <Brain className="h-5 w-5 text-purple-600" />
-              </span>
-              <div className="text-sm font-medium text-gray-500">Total Insights</div>
-            </div>
-          </div>
-          <div className="text-4xl font-bold mt-4 text-gray-900">{insightCount}</div>
-        </div>
-
-        <div className="p-6 rounded-2xl border border-gray-200 bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
-                <BookOpen className="h-5 w-5 text-blue-600" />
-              </span>
-              <div className="text-sm font-medium text-gray-500">Knowledge Items</div>
-            </div>
-          </div>
-          <div className="text-4xl font-bold mt-4 text-gray-900">{knowledgeCount}</div>
-        </div>
-
-        <div className="p-6 rounded-2xl border border-gray-200 bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center border border-amber-100">
-                <Clock className="h-5 w-5 text-amber-600" />
-              </span>
-              <div className="text-sm font-medium text-gray-500">Last Update</div>
-            </div>
-          </div>
-          <div className="text-lg font-semibold mt-4 text-gray-900 truncate">
-            {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '-'}
-          </div>
-        </div>
-
-        <div className="p-6 rounded-2xl border border-gray-200 bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                <Activity className="h-5 w-5 text-emerald-600" />
-              </span>
-              <div className="text-sm font-medium text-gray-500">System Status</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span className="text-lg font-semibold text-emerald-700">Active</span>
-          </div>
-        </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard
+          icon={Brain}
+          iconColor="text-purple-600"
+          iconBg="bg-purple-50"
+          label="洞察总数"
+          value={insightCount}
+          size="md"
+        />
+        <StatCard
+          icon={BookOpen}
+          iconColor="text-blue-600"
+          iconBg="bg-blue-50"
+          label="知识条目"
+          value={knowledgeCount}
+          size="md"
+        />
+        <StatCard
+          icon={Clock}
+          iconColor="text-amber-600"
+          iconBg="bg-amber-50"
+          label="最近更新"
+          value={lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '-'}
+          size="md"
+        />
+        <StatCard
+          icon={Activity}
+          iconColor="text-emerald-600"
+          iconBg="bg-emerald-50"
+          label="系统状态"
+          value="运行中"
+          size="md"
+        />
       </div>
 
-      <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+      {/* Knowledge Panel */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <KnowledgePanel />
       </div>
     </div>

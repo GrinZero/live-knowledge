@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Save, Bot, RefreshCw, AlertCircle } from 'lucide-react'
+import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '../lib/api-client'
+import { cn } from '@/lib/utils'
 
 const tabs = [
-  { key: 'general', label: '通用' },
-  { key: 'ai', label: 'AI 模型' },
-  { key: 'triggers', label: '触发规则' },
-  { key: 'integrations', label: '系统集成' },
-  { key: 'personal', label: '个性化' }
+  { key: 'general', label: '通用设置', icon: Settings2 },
+  { key: 'ai', label: 'AI 模型', icon: Bot },
+  { key: 'triggers', label: '触发规则', icon: Zap },
+  { key: 'integrations', label: '系统集成', icon: Link2 },
+  { key: 'personal', label: '个性化', icon: Palette }
 ]
 
 export default function Settings(): React.JSX.Element {
-  const [active, setActive] = useState('general')
+  const [active, setActive] = useState('ai')
   const [aiConfig, setAiConfig] = useState({
     provider: 'gemini',
     apiKey: '',
@@ -21,11 +22,9 @@ export default function Settings(): React.JSX.Element {
     baseUrl: '',
     language: 'zh'
   })
-  // Cache for provider settings to restore when switching back
   const [providerCache, setProviderCache] = useState<
     Record<string, { apiKey: string; model: string; baseUrl?: string }>
   >({})
-
   const [isLoading, setIsLoading] = useState(false)
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
@@ -35,10 +34,7 @@ export default function Settings(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    // Clear available models when provider changes to prevent mismatch
     setAvailableModels([])
-
-    // Update defaults or restore from cache when provider changes
     if (aiConfig.provider === 'openai') {
       const cached = providerCache['openai']
       if (
@@ -84,7 +80,6 @@ export default function Settings(): React.JSX.Element {
     }
   }, [aiConfig.provider, providerCache])
 
-  // Update cache when config changes
   useEffect(() => {
     if (aiConfig.provider && (aiConfig.apiKey || aiConfig.model || aiConfig.baseUrl)) {
       setProviderCache((prev) => ({
@@ -110,7 +105,6 @@ export default function Settings(): React.JSX.Element {
           baseUrl: config.baseUrl || '',
           language: config.language || 'zh'
         })
-        // Initialize cache with loaded config
         if (config.provider) {
           setProviderCache((prev) => ({
             ...prev,
@@ -121,8 +115,6 @@ export default function Settings(): React.JSX.Element {
             }
           }))
         }
-
-        // If we have a key and provider, try to fetch models immediately
         if (config.apiKey && config.provider) {
           fetchModels(config.apiKey, config.provider, config.proxyUrl, config.baseUrl)
         }
@@ -146,16 +138,15 @@ export default function Settings(): React.JSX.Element {
       })
       if (models && models.length > 0) {
         setAvailableModels(models)
-        // If current model is not in list, select the first one or keep it if it's custom
         if (!models.includes(aiConfig.model) && !aiConfig.model) {
           setAiConfig((prev) => ({ ...prev, model: models[0] }))
         }
       } else {
-        toast.warning('No models found for this API Key')
+        toast.warning('未找到可用模型')
       }
     } catch (error) {
       console.error('Failed to fetch models:', error)
-      toast.error('Failed to fetch available models')
+      toast.error('获取模型列表失败')
     } finally {
       setIsFetchingModels(false)
     }
@@ -168,279 +159,286 @@ export default function Settings(): React.JSX.Element {
         ...aiConfig,
         language: aiConfig.language as 'zh' | 'en'
       })
-      toast.success('AI configuration saved successfully')
+      toast.success('配置已保存')
     } catch (error) {
       console.error('Failed to save AI config:', error)
-      toast.error('Failed to save AI configuration')
+      toast.error('保存配置失败')
     } finally {
       setIsLoading(false)
     }
   }
 
+  const inputClass =
+    'w-full h-10 px-3 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all'
+  const labelClass = 'block text-sm font-medium text-gray-700 mb-1.5'
+  const helperClass = 'text-xs text-gray-500 mt-1.5'
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
+      {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold">设置</h1>
-        <p className="text-sm text-gray-600">配置监控、触发、集成与个性化</p>
+        <h1 className="text-2xl font-semibold text-gray-900">设置</h1>
+        <p className="text-sm text-gray-500 mt-1">配置监控、AI 模型和系统集成</p>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setActive(t.key)}
-            className={`px-4 py-2 text-sm whitespace-nowrap rounded-t-lg transition-all cursor-pointer ${
-              active === t.key
-                ? 'bg-blue-50 text-blue-700 border border-gray-200 border-b-transparent font-medium'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 active:bg-gray-100'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {active === 'general' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">
-            <div className="text-sm font-medium text-gray-700 mb-2">采集间隔</div>
-            <input
-              type="number"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-              placeholder="毫秒"
-            />
-          </div>
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">
-            <div className="text-sm font-medium text-gray-700 mb-2">相似度阈值</div>
-            <input
-              type="number"
-              step="0.01"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-              placeholder="0.85"
-            />
-          </div>
-        </div>
-      )}
-
-      {active === 'ai' && (
-        <div className="flex flex-col gap-4 max-w-2xl">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-6">
-              <Bot className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-900">AI 模型配置</h2>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                <select
-                  value={aiConfig.provider}
-                  onChange={(e) => setAiConfig({ ...aiConfig, provider: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                >
-                  <option value="gemini">Google Gemini (Recommended)</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="custom">Custom (OpenAI Compatible)</option>
-                </select>
-              </div>
-
-              {aiConfig.provider === 'custom' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
-                  <input
-                    type="text"
-                    value={aiConfig.baseUrl}
-                    onChange={(e) => setAiConfig({ ...aiConfig, baseUrl: e.target.value })}
-                    placeholder="https://api.example.com/v1"
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Enter the base URL for your custom OpenAI-compatible API.
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={aiConfig.apiKey}
-                    onChange={(e) => setAiConfig({ ...aiConfig, apiKey: e.target.value })}
-                    onBlur={() => {
-                      if (aiConfig.apiKey)
-                        fetchModels(
-                          aiConfig.apiKey,
-                          aiConfig.provider,
-                          aiConfig.proxyUrl,
-                          aiConfig.baseUrl
-                        )
-                    }}
-                    placeholder="Enter your API key..."
-                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                  />
-                  <button
-                    onClick={() =>
-                      fetchModels(
-                        aiConfig.apiKey,
-                        aiConfig.provider,
-                        aiConfig.proxyUrl,
-                        aiConfig.baseUrl
-                      )
-                    }
-                    disabled={isFetchingModels || !aiConfig.apiKey}
-                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Fetch available models"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isFetchingModels ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Keys are stored locally. Models will be fetched automatically when key is entered.
-                </p>
-              </div>
-
-              {aiConfig.provider !== 'custom' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Proxy URL (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={aiConfig.proxyUrl}
-                    onChange={(e) => setAiConfig({ ...aiConfig, proxyUrl: e.target.value })}
-                    placeholder="http://127.0.0.1:7890"
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Configure a proxy if you are having trouble connecting to the AI provider.
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-sm font-medium text-gray-700">Model Name</label>
-                  {availableModels.length > 0 && (
-                    <button
-                      onClick={() => setAvailableModels([])}
-                      className="text-xs text-blue-600 hover:underline cursor-pointer"
-                    >
-                      Enter manually
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  {availableModels.length > 0 ? (
-                    <select
-                      value={aiConfig.model}
-                      onChange={(e) => {
-                        if (e.target.value === 'custom') {
-                          setAvailableModels([])
-                          setAiConfig({ ...aiConfig, model: '' })
-                        } else {
-                          setAiConfig({ ...aiConfig, model: e.target.value })
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm appearance-none"
-                    >
-                      {availableModels.map((model) => (
-                        <option key={model} value={model}>
-                          {model}
-                        </option>
-                      ))}
-                      <option value="custom">Custom...</option>
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={aiConfig.model}
-                      onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
-                      placeholder={aiConfig.provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4.1'}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                    />
-                  )}
-
-                  {availableModels.length > 0 && (
-                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                      <svg
-                        className="w-4 h-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 9l-7 7-7-7"
-                        ></path>
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                {availableModels.length === 0 && !isFetchingModels && aiConfig.apiKey && (
-                  <div className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-                    <AlertCircle className="w-3 h-3" />
-                    <span>Could not fetch models automatically. You can enter one manually.</span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Language / 语言
-                </label>
-                <select
-                  value={aiConfig.language}
-                  onChange={(e) =>
-                    setAiConfig({ ...aiConfig, language: e.target.value as 'zh' | 'en' })
-                  }
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                >
-                  <option value="zh">中文 (Chinese)</option>
-                  <option value="en">English (英文)</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Select the language for AI summaries and insights.
-                </p>
-              </div>
-
-              <div className="pt-4">
+      {/* Settings Layout */}
+      <div className="flex gap-6">
+        {/* Left Sidebar - Tabs */}
+        <div className="w-48 flex-none">
+          <nav className="space-y-1">
+            {tabs.map((t) => {
+              const Icon = t.icon
+              const isActive = active === t.key
+              return (
                 <button
-                  onClick={handleSaveAIConfig}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 active:scale-95 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  key={t.key}
+                  onClick={() => setActive(t.key)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left',
+                    isActive
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  )}
                 >
-                  <Save className="w-4 h-4" />
-                  {isLoading ? 'Saving...' : 'Save Configuration'}
+                  <Icon className={cn('h-4 w-4', isActive ? 'text-blue-600' : 'text-gray-400')} />
+                  <span>{t.label}</span>
                 </button>
+              )
+            })}
+          </nav>
+        </div>
+
+        {/* Right Content */}
+        <div className="flex-1 min-w-0">
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            {active === 'general' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-4">通用设置</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>采集间隔</label>
+                      <input type="number" className={inputClass} placeholder="15000" />
+                      <p className={helperClass}>屏幕捕获的时间间隔（毫秒）</p>
+                    </div>
+                    <div>
+                      <label className={labelClass}>相似度阈值</label>
+                      <input type="number" step="0.01" className={inputClass} placeholder="0.85" />
+                      <p className={helperClass}>内容去重的相似度阈值</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {active === 'ai' && (
+              <div className="space-y-6 max-w-lg">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-4">AI 模型配置</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className={labelClass}>服务提供商</label>
+                      <select
+                        value={aiConfig.provider}
+                        onChange={(e) => setAiConfig({ ...aiConfig, provider: e.target.value })}
+                        className={inputClass}
+                      >
+                        <option value="gemini">Google Gemini（推荐）</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="custom">自定义（OpenAI 兼容）</option>
+                      </select>
+                    </div>
+
+                    {aiConfig.provider === 'custom' && (
+                      <div>
+                        <label className={labelClass}>Base URL</label>
+                        <input
+                          type="text"
+                          value={aiConfig.baseUrl}
+                          onChange={(e) => setAiConfig({ ...aiConfig, baseUrl: e.target.value })}
+                          placeholder="https://api.example.com/v1"
+                          className={cn(inputClass, 'font-mono')}
+                        />
+                        <p className={helperClass}>自定义 API 的基础地址</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className={labelClass}>API Key</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={aiConfig.apiKey}
+                          onChange={(e) => setAiConfig({ ...aiConfig, apiKey: e.target.value })}
+                          onBlur={() => {
+                            if (aiConfig.apiKey)
+                              fetchModels(
+                                aiConfig.apiKey,
+                                aiConfig.provider,
+                                aiConfig.proxyUrl,
+                                aiConfig.baseUrl
+                              )
+                          }}
+                          placeholder="输入 API Key..."
+                          className={cn(inputClass, 'flex-1 font-mono')}
+                        />
+                        <button
+                          onClick={() =>
+                            fetchModels(
+                              aiConfig.apiKey,
+                              aiConfig.provider,
+                              aiConfig.proxyUrl,
+                              aiConfig.baseUrl
+                            )
+                          }
+                          disabled={isFetchingModels || !aiConfig.apiKey}
+                          className="h-10 w-10 flex items-center justify-center bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="获取模型列表"
+                        >
+                          <RefreshCw
+                            className={cn('w-4 h-4', isFetchingModels && 'animate-spin')}
+                          />
+                        </button>
+                      </div>
+                      <p className={helperClass}>密钥仅存储在本地，输入后自动获取可用模型</p>
+                    </div>
+
+                    {aiConfig.provider !== 'custom' && (
+                      <div>
+                        <label className={labelClass}>代理地址（可选）</label>
+                        <input
+                          type="text"
+                          value={aiConfig.proxyUrl}
+                          onChange={(e) => setAiConfig({ ...aiConfig, proxyUrl: e.target.value })}
+                          placeholder="http://127.0.0.1:7890"
+                          className={cn(inputClass, 'font-mono')}
+                        />
+                        <p className={helperClass}>如果无法直接连接 API，可配置代理</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-sm font-medium text-gray-700">模型名称</label>
+                        {availableModels.length > 0 && (
+                          <button
+                            onClick={() => setAvailableModels([])}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            手动输入
+                          </button>
+                        )}
+                      </div>
+                      {availableModels.length > 0 ? (
+                        <select
+                          value={aiConfig.model}
+                          onChange={(e) => {
+                            if (e.target.value === 'custom') {
+                              setAvailableModels([])
+                              setAiConfig({ ...aiConfig, model: '' })
+                            } else {
+                              setAiConfig({ ...aiConfig, model: e.target.value })
+                            }
+                          }}
+                          className={cn(inputClass, 'font-mono')}
+                        >
+                          {availableModels.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                          <option value="custom">自定义...</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={aiConfig.model}
+                          onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
+                          placeholder={
+                            aiConfig.provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4.1'
+                          }
+                          className={cn(inputClass, 'font-mono')}
+                        />
+                      )}
+                      {availableModels.length === 0 && !isFetchingModels && aiConfig.apiKey && (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>无法自动获取模型列表，请手动输入</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>输出语言</label>
+                      <select
+                        value={aiConfig.language}
+                        onChange={(e) =>
+                          setAiConfig({ ...aiConfig, language: e.target.value as 'zh' | 'en' })
+                        }
+                        className={inputClass}
+                      >
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                      </select>
+                      <p className={helperClass}>AI 生成摘要和洞察的语言</p>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        onClick={handleSaveAIConfig}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 h-10 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Save className="w-4 h-4" />
+                        {isLoading ? '保存中...' : '保存配置'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {active === 'triggers' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-2">触发规则</h2>
+                  <p className="text-sm text-gray-500">配置屏幕捕获的触发条件和去抖策略</p>
+                </div>
+                <div className="py-12 text-center text-gray-400">
+                  <Zap className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>即将推出</p>
+                </div>
+              </div>
+            )}
+
+            {active === 'integrations' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-2">系统集成</h2>
+                  <p className="text-sm text-gray-500">连接外部服务和云同步</p>
+                </div>
+                <div className="py-12 text-center text-gray-400">
+                  <Link2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>即将推出</p>
+                </div>
+              </div>
+            )}
+
+            {active === 'personal' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-2">个性化</h2>
+                  <p className="text-sm text-gray-500">主题、外观和隐私偏好</p>
+                </div>
+                <div className="py-12 text-center text-gray-400">
+                  <Palette className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>即将推出</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {active === 'triggers' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">触发规则设置</div>
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">去抖与节流</div>
-        </div>
-      )}
-
-      {active === 'integrations' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">系统集成设置</div>
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">云同步</div>
-        </div>
-      )}
-
-      {active === 'personal' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">主题与外观</div>
-          <div className="rounded-lg border border-gray-200 p-4 bg-white">隐私偏好</div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

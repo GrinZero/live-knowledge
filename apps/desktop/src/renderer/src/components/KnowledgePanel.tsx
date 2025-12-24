@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Search, Calendar, Tag, Trash2, Download, X } from 'lucide-react'
+import { Search, Trash2, Download, ChevronDown, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SidePanel } from '@/components/ui/side-panel'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ImagePreview } from '@/components/ImagePreview'
 import { apiClient } from '../lib/api-client'
+import { cn } from '@/lib/utils'
 
 interface KnowledgeItem {
   id: string
@@ -37,39 +40,34 @@ export default function KnowledgePanel(): React.JSX.Element {
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [sortBy, setSortBy] = useState<'date' | 'confidence' | 'type'>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(24)
+  const [showFilters, setShowFilters] = useState(false)
+  const pageSize = 20
 
   useEffect(() => {
-    // Initial load
     loadKnowledgeItems()
     loadInsights()
 
-    // Listen for real-time updates
     const handleInsightGenerated = (_: unknown, newInsight: Insight) => {
       setInsights((prev) => {
-        // Prevent duplicates
         if (prev.some((i) => i.id === newInsight.id)) return prev
         return [newInsight, ...prev]
       })
-      // Also reload knowledge items to update counts/relationships
       loadKnowledgeItems()
     }
 
-    // Subscribe to events
-    // @ts-ignore: Accessing internal electron API
+    // @ts-ignore - Electron IPC API
     if (window.electron && window.electron.ipcRenderer) {
-      // @ts-ignore: Accessing internal electron API
+      // @ts-ignore - Electron IPC API
       window.electron.ipcRenderer.on('monitoring:insight', handleInsightGenerated)
     }
 
     return () => {
-      // @ts-ignore: Accessing internal electron API
+      // @ts-ignore - Electron IPC API
       if (window.electron && window.electron.ipcRenderer) {
-        // @ts-ignore: Accessing internal electron API
+        // @ts-ignore - Electron IPC API
         window.electron.ipcRenderer.removeAllListeners('monitoring:insight')
       }
     }
@@ -86,8 +84,6 @@ export default function KnowledgePanel(): React.JSX.Element {
     try {
       const items = await apiClient.database.getKnowledgeItems(100)
       setKnowledgeItems(items)
-      // When knowledge items change (e.g. deletion), we should also update filtered items
-      // But filteredItems is updated via useEffect dep on knowledgeItems, so this is fine.
     } catch (error) {
       console.error('Failed to load knowledge items:', error)
     } finally {
@@ -110,16 +106,12 @@ export default function KnowledgePanel(): React.JSX.Element {
         searchQuery === '' ||
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.content.toLowerCase().includes(searchQuery.toLowerCase())
-
       const matchesType = selectedType === 'all' || item.type === selectedType
-
       return matchesSearch && matchesType
     })
 
-    // Sort items
     filtered.sort((a, b) => {
       let comparison = 0
-
       switch (sortBy) {
         case 'date':
           comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -131,39 +123,23 @@ export default function KnowledgePanel(): React.JSX.Element {
           comparison = a.type.localeCompare(b.type)
           break
       }
-
       return sortOrder === 'asc' ? comparison : -comparison
     })
 
     setFilteredItems(filtered)
   }
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-  }
-
-  const handleTypeFilter = (type: string) => {
-    setSelectedType(type)
-  }
-
-  const handleItemClick = (item: KnowledgeItem) => {
-    setSelectedItem(item)
-  }
-
   const handleDeleteItem = async (itemId: string) => {
-    if (confirm('Are you sure you want to delete this knowledge item?')) {
+    if (confirm('确定要删除这条知识吗？')) {
       try {
         await apiClient.database.deleteKnowledgeItem(itemId)
-        // Manually update local state to reflect deletion immediately
         setKnowledgeItems((prev) => prev.filter((item) => item.id !== itemId))
-        // Also remove related insights from local state
         setInsights((prev) => prev.filter((insight) => insight.knowledgeItemId !== itemId))
         if (selectedItem?.id === itemId) {
           setSelectedItem(null)
         }
       } catch (error) {
         console.error('Failed to delete item:', error)
-        // Fallback to reload if local update fails or is out of sync
         await loadKnowledgeItems()
       }
     }
@@ -178,7 +154,6 @@ export default function KnowledgePanel(): React.JSX.Element {
       createdAt: item.createdAt,
       metadata: item.metadata
     }
-
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -190,201 +165,178 @@ export default function KnowledgePanel(): React.JSX.Element {
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      meeting_schedule: 'bg-blue-100 text-blue-700 border border-blue-200',
-      task_todo: 'bg-green-100 text-green-700 border border-green-200',
-      topic_discussion: 'bg-purple-100 text-purple-700 border border-purple-200',
-      data_table: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      problem_solving: 'bg-red-100 text-red-700 border border-red-200',
-      insight_context: 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+      meeting_schedule: 'bg-blue-500',
+      task_todo: 'bg-green-500',
+      topic_discussion: 'bg-purple-500',
+      data_table: 'bg-amber-500',
+      problem_solving: 'bg-red-500',
+      insight_context: 'bg-indigo-500'
     }
-    return colors[type] || 'bg-gray-100 text-gray-700 border border-gray-200'
-  }
-
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600'
-    if (confidence >= 0.5) return 'text-yellow-600'
-    return 'text-red-600'
+    return colors[type] || 'bg-gray-400'
   }
 
   const getRelatedInsights = (itemId: string) => {
     return insights.filter((insight) => insight.knowledgeItemId === itemId)
   }
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const isToday = date.toDateString() === now.toDateString()
+    if (isToday) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    }
+    return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
+  const paginatedItems = filteredItems.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <div>
-      <div className="border-b border-gray-200 bg-white px-4 py-3 rounded-t-lg">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-2xl font-bold">知识库</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                List
-              </Button>
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('grid')}
-              >
-                Grid
-              </Button>
-            </div>
-            <span className="text-sm text-gray-400">{filteredItems.length} items</span>
-          </div>
-        </div>
-
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="flex-1 relative group">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+          {/* Search */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search knowledge..."
+              placeholder="搜索知识..."
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 bg-gray-50 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
 
-          <select
-            value={selectedType}
-            onChange={(e) => handleTypeFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              'h-10 px-3 flex items-center gap-2 rounded-lg border text-sm font-medium transition-all',
+              showFilters
+                ? 'bg-blue-50 border-blue-200 text-blue-600'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            )}
           >
-            <option value="all">All Types</option>
-            <option value="meeting">Meeting</option>
-            <option value="task">Task</option>
-            <option value="schedule">Schedule</option>
-            <option value="problem">Problem</option>
-            <option value="data">Data</option>
-          </select>
+            <Filter className="h-4 w-4" />
+            筛选
+            <ChevronDown
+              className={cn('h-4 w-4 transition-transform', showFilters && 'rotate-180')}
+            />
+          </button>
 
-          <select
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [field, order] = e.target.value.split('-')
-              setSortBy(field as 'date' | 'confidence' | 'type')
-              setSortOrder(order as 'asc' | 'desc')
-            }}
-            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="date-desc">Newest First</option>
-            <option value="date-asc">Oldest First</option>
-            <option value="confidence-desc">Highest Confidence</option>
-            <option value="confidence-asc">Lowest Confidence</option>
-            <option value="type-asc">Type A-Z</option>
-            <option value="type-desc">Type Z-A</option>
-          </select>
-
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(parseInt(e.target.value))
-              setPage(1)
-            }}
-            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={10}>10 / page</option>
-            <option value={24}>24 / page</option>
-            <option value={50}>50 / page</option>
-          </select>
+          {/* Count */}
+          <span className="text-sm text-gray-400">{filteredItems.length} 条</span>
         </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="all">全部类型</option>
+              <option value="meeting_schedule">会议</option>
+              <option value="task_todo">任务</option>
+              <option value="topic_discussion">讨论</option>
+              <option value="problem_solving">问题</option>
+              <option value="data_table">数据</option>
+            </select>
+
+            <select
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, order] = e.target.value.split('-')
+                setSortBy(field as 'date' | 'confidence' | 'type')
+                setSortOrder(order as 'asc' | 'desc')
+              }}
+              className="h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="date-desc">最新优先</option>
+              <option value="date-asc">最早优先</option>
+              <option value="confidence-desc">置信度高</option>
+              <option value="confidence-asc">置信度低</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      <div className="flex min-h-0 relative h-full">
-        {/* Main Content */}
-        <div className="flex-1 min-h-0 p-4 overflow-y-auto overflow-x-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-gray-400">Loading knowledge items...</div>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <div className="text-lg mb-2">No knowledge items found</div>
-              <div className="text-sm">Start monitoring to capture knowledge items</div>
-            </div>
-          ) : (
-            <>
-              <div
-                className={
-                  viewMode === 'grid'
-                    ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'
-                    : 'flex flex-col gap-3'
-                }
-              >
-                {filteredItems.slice((page - 1) * pageSize, page * pageSize).map((item) => (
-                  <div
-                    key={item.id}
-                    className={`bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-colors cursor-pointer ${
-                      selectedItem?.id === item.id ? 'ring-2 ring-blue-500' : ''
-                    }`}
-                    onClick={() => handleItemClick(item)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`px-2 py-1 rounded-full text-xs ${getTypeColor(item.type)}`}
-                        >
-                          {item.type.replace('_', ' ').toUpperCase()}
-                        </div>
-                        <div
-                          className={`text-xs font-medium ${getConfidenceColor(item.confidence)}`}
-                        >
-                          {Math.round(item.confidence * 100)}%
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-gray-500 hover:text-gray-900"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleExportItem(item)
-                          }}
-                          title="Export"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteItem(item.id)
-                          }}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+      {/* Content */}
+      <div className="p-5">
+        {isLoading ? (
+          <div className="py-16 text-center text-gray-400">加载中...</div>
+        ) : filteredItems.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="暂无知识条目"
+            description="开始监控后，AI 将自动提取和保存知识"
+          />
+        ) : (
+          <>
+            {/* List */}
+            <div className="space-y-2">
+              {paginatedItems.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className={cn(
+                    'flex gap-3 p-4 rounded-lg border cursor-pointer transition-all',
+                    selectedItem?.id === item.id
+                      ? 'border-blue-200 bg-blue-50/50'
+                      : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/50'
+                  )}
+                >
+                  {/* Type indicator */}
+                  <div className={cn('w-1 rounded-full flex-none', getTypeColor(item.type))} />
 
-                    <h3 className="font-semibold text-gray-900 mb-1 truncate">{item.title}</h3>
-                    <p className="text-gray-700 text-sm mb-2 line-clamp-3">{item.content}</p>
-
-                    <div className="flex items-center justify-between text-xs text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>{new Date(item.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Tag className="h-3 w-3" />
-                        <span>{getRelatedInsights(item.id).length} insights</span>
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-gray-400 uppercase font-medium">
+                        {item.type.replace('_', ' ')}
+                      </span>
+                      <span className="text-xs text-gray-300">·</span>
+                      <span className="text-xs text-gray-400">{formatDate(item.createdAt)}</span>
                     </div>
+                    <h3 className="font-medium text-gray-900 mb-1 line-clamp-1">{item.title}</h3>
+                    <p className="text-sm text-gray-500 line-clamp-2">{item.content}</p>
                   </div>
-                ))}
-              </div>
 
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-gray-500">
-                  Showing {(page - 1) * pageSize + 1}-
-                  {Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
+                  {/* Actions */}
+                  <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExportItem(item)
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                      title="导出"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteItem(item.id)
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50"
+                      title="删除"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                <span className="text-sm text-gray-500">
+                  第 {page} / {totalPages} 页
+                </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -392,229 +344,161 @@ export default function KnowledgePanel(): React.JSX.Element {
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    Prev
+                    上一页
                   </Button>
-                  <span className="text-sm text-gray-600">
-                    Page {page} / {Math.max(1, Math.ceil(filteredItems.length / pageSize))}
-                  </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={page >= Math.ceil(filteredItems.length / pageSize)}
-                    onClick={() =>
-                      setPage((p) => Math.min(Math.ceil(filteredItems.length / pageSize), p + 1))
-                    }
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   >
-                    Next
+                    下一页
                   </Button>
                 </div>
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </>
+        )}
+      </div>
 
-        {/* Detail Panel Overlay */}
+      {/* Detail Panel */}
+      <SidePanel
+        open={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        title="详情"
+        width="lg"
+      >
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm transition-opacity"
-              onClick={() => setSelectedItem(null)}
-            />
+          <div className="space-y-6">
+            {/* Type */}
+            <div>
+              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                类型
+              </label>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className={cn('w-2 h-2 rounded-full', getTypeColor(selectedItem.type))} />
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedItem.type.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
+            </div>
 
-            {/* Panel */}
-            <div className="relative w-[32rem] h-full bg-white shadow-2xl overflow-y-auto border-l border-gray-200 animate-in slide-in-from-right duration-200">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">Item Details</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSelectedItem(null)}
-                    className="rounded-full"
-                  >
-                    <span className="sr-only">Close</span>
-                    <X className="w-5 h-5" />
-                  </Button>
-                </div>
+            {/* Title */}
+            <div>
+              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                标题
+              </label>
+              <p className="mt-1.5 text-gray-900 font-medium">{selectedItem.title}</p>
+            </div>
 
-                <div className="flex flex-col gap-6">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Type
-                    </label>
-                    <div>
-                      <span
-                        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedItem.type)}`}
-                      >
-                        {selectedItem.type.replace('_', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
+            {/* Content */}
+            <div>
+              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                内容
+              </label>
+              <div className="mt-1.5 p-4 bg-gray-50 rounded-lg text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {selectedItem.content}
+              </div>
+            </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Title
-                    </label>
-                    <p className="text-gray-900 font-medium text-lg leading-snug selectable">
-                      {selectedItem.title}
-                    </p>
-                  </div>
+            {/* Meta */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  置信度
+                </label>
+                <p className="mt-1.5 text-sm font-medium text-gray-900">
+                  {Math.round(selectedItem.confidence * 100)}%
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  创建时间
+                </label>
+                <p className="mt-1.5 text-sm text-gray-900">
+                  {new Date(selectedItem.createdAt).toLocaleString('zh-CN')}
+                </p>
+              </div>
+            </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Content
-                    </label>
-                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap border border-gray-100 selectable">
-                      {selectedItem.content}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Confidence
-                      </label>
-                      <div
-                        className={`font-medium text-lg ${getConfidenceColor(selectedItem.confidence)}`}
-                      >
-                        {Math.round(selectedItem.confidence * 100)}%
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Created
-                      </label>
-                      <div className="text-gray-900 font-medium">
-                        {new Date(selectedItem.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-gray-500 text-xs">
-                        {new Date(selectedItem.createdAt).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {(typeof selectedItem.metadata?.screenshotPath === 'string' ||
-                    Array.isArray(selectedItem.metadata?.screenshotPath)) && (
+            {/* Screenshot */}
+            {(typeof selectedItem.metadata?.screenshotPath === 'string' ||
+              Array.isArray(selectedItem.metadata?.screenshotPath)) && (
+              <div>
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  截图
+                </label>
+                <div className="mt-1.5 rounded-lg overflow-hidden border border-gray-200">
+                  {Array.isArray(selectedItem.metadata.screenshotPath) ? (
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Screenshot
-                      </label>
-                      <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                        {Array.isArray(selectedItem.metadata.screenshotPath) ? (
-                          <div className="grid grid-cols-1 gap-2">
-                            {selectedItem.metadata.screenshotPath.map((path, i) => (
-                              <ImagePreview
-                                key={i}
-                                src={`media://${String(path)}`}
-                                className="w-full h-auto object-cover"
-                                alt={`screenshot-${i}`}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <ImagePreview
-                            src={`media://${selectedItem.metadata.screenshotPath as string}`}
-                            alt="screenshot"
-                            className="w-full h-auto object-cover"
-                          />
-                        )}
-                      </div>
+                      {selectedItem.metadata.screenshotPath.map((path, i) => (
+                        <ImagePreview
+                          key={i}
+                          src={`media://${String(path)}`}
+                          className="w-full h-auto"
+                          alt={`screenshot-${i}`}
+                        />
+                      ))}
                     </div>
+                  ) : (
+                    <ImagePreview
+                      src={`media://${selectedItem.metadata.screenshotPath as string}`}
+                      alt="screenshot"
+                      className="w-full h-auto"
+                    />
                   )}
-
-                  {selectedItem.metadata && Object.keys(selectedItem.metadata).length > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Metadata
-                      </label>
-                      <div className="bg-gray-50 rounded-lg border border-gray-100 overflow-hidden">
-                        {Object.entries(selectedItem.metadata).map(([key, value], index) => (
-                          <div
-                            key={key}
-                            className={`flex flex-col gap-1 px-4 py-2 ${index !== 0 ? 'border-t border-gray-100' : ''}`}
-                          >
-                            <span className="text-gray-500 text-xs font-medium">{key}</span>
-                            <div className="text-gray-900 text-xs break-all whitespace-pre-wrap bg-white p-2 rounded border border-gray-100 max-h-60 overflow-y-auto selectable">
-                              {Array.isArray(value)
-                                ? value
-                                    .map((v) =>
-                                      typeof v === 'object' ? JSON.stringify(v) : String(v)
-                                    )
-                                    .join(', ')
-                                : typeof value === 'object' && value !== null
-                                  ? JSON.stringify(value, null, 2)
-                                  : String(value)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Related Insights
-                    </label>
-                    {getRelatedInsights(selectedItem.id).length === 0 ? (
-                      <div className="text-gray-400 text-sm italic">No related insights found</div>
-                    ) : (
-                      <div className="flex flex-col gap-3">
-                        {getRelatedInsights(selectedItem.id).map((insight) => (
-                          <div
-                            key={insight.id}
-                            className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-3 shadow-sm text-white"
-                          >
-                            <div className="font-semibold text-sm mb-1 selectable">
-                              {insight.title}
-                            </div>
-                            <div className="text-xs text-gray-300 leading-relaxed opacity-90 selectable">
-                              {insight.content}
-                            </div>
-                            {((typeof insight.metadata?.screenshotPath === 'string' &&
-                              insight.metadata.screenshotPath) ||
-                              (Array.isArray(insight.metadata?.screenshotPath) &&
-                                insight.metadata.screenshotPath.length > 0)) && (
-                              <div className="mt-2 rounded overflow-hidden border border-white/10">
-                                {Array.isArray(insight.metadata?.screenshotPath) ? (
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {(insight.metadata.screenshotPath as string[]).map(
-                                      (path, i) => (
-                                        <ImagePreview
-                                          key={i}
-                                          src={`media://${path}`}
-                                          alt={`insight screenshot ${i}`}
-                                          className="w-full h-auto object-cover"
-                                        />
-                                      )
-                                    )}
-                                  </div>
-                                ) : (
-                                  <ImagePreview
-                                    src={`media://${insight.metadata?.screenshotPath as string}`}
-                                    alt="insight screenshot"
-                                    className="w-full h-auto object-cover"
-                                  />
-                                )}
-                              </div>
-                            )}
-                            <div className="mt-2 flex items-center gap-2">
-                              <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-medium uppercase tracking-wider">
-                                {insight.type}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
+            )}
+
+            {/* Related Insights */}
+            <div>
+              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                相关洞察 ({getRelatedInsights(selectedItem.id).length})
+              </label>
+              {getRelatedInsights(selectedItem.id).length === 0 ? (
+                <p className="mt-1.5 text-sm text-gray-400 italic">暂无相关洞察</p>
+              ) : (
+                <div className="mt-1.5 space-y-2">
+                  {getRelatedInsights(selectedItem.id).map((insight) => (
+                    <div key={insight.id} className="p-3 bg-gray-900 rounded-lg text-white">
+                      <div className="font-medium text-sm mb-1">{insight.title}</div>
+                      <div className="text-xs text-gray-300 line-clamp-2">{insight.content}</div>
+                      <div className="mt-2">
+                        <span className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-medium uppercase">
+                          {insight.type}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-4 border-t border-gray-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExportItem(selectedItem)}
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                导出
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteItem(selectedItem.id)}
+                className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                删除
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </SidePanel>
     </div>
   )
 }

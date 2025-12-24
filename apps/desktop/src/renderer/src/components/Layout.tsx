@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, BookOpen, Settings, PanelsTopLeft, Plug } from 'lucide-react'
+import { Activity, LayoutDashboard, Settings, Plug, Sparkles } from 'lucide-react'
 import type React from 'react'
 
 import { getPluginSidebarItems, subscribeToPluginUpdates } from '../plugin-registry'
@@ -8,10 +8,9 @@ import { useEffect, useState } from 'react'
 
 const navItems = [
   { path: '/', label: '监控', icon: Activity },
-  { path: '/dashboard', label: '展示', icon: LayoutDashboard },
+  { path: '/dashboard', label: '知识库', icon: LayoutDashboard },
   { path: '/plugins', label: '插件', icon: Plug },
-  { path: '/overlay', label: '悬浮窗', icon: PanelsTopLeft },
-  { path: '/settings', label: '设置', icon: Settings }
+  { path: '/settings', label: '设置', icon: Settings },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -26,29 +25,33 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
   }, [])
 
   return (
-    <div className="h-screen bg-white text-gray-900 flex">
-      <aside className="w-64 min-w-64 flex-none h-screen overflow-y-auto border-r border-gray-200 bg-white">
-        <div className="h-14 px-5 border-b border-gray-200 flex items-center">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-blue-600" />
-            <div className="text-lg font-semibold">Live Knowledge</div>
+    <div className="h-screen bg-gray-50 text-gray-900 flex">
+      {/* Sidebar */}
+      <aside className="w-56 flex-none h-screen flex flex-col border-r border-gray-200 bg-white">
+        {/* Logo */}
+        <div className="h-14 px-4 flex items-center gap-2.5 border-b border-gray-100">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <Sparkles className="h-4 w-4 text-white" />
           </div>
+          <span className="text-base font-semibold text-gray-900">Live Knowledge</span>
         </div>
-        <nav className="px-2 py-3 flex flex-col gap-1">
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map(({ path, label, icon: Icon }) => {
             const active = location.pathname === path
             return (
               <Link
                 key={path}
                 to={path}
-                className={`flex w-full items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer active:scale-95 ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-200'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                <Icon className={`h-4 w-4 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
-                <span className="text-sm font-medium">{label}</span>
+                <Icon className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span>{label}</span>
               </Link>
             )
           })}
@@ -56,8 +59,10 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
           {/* Plugin Items */}
           {pluginItems.length > 0 && (
             <>
-              <div className="px-3 py-2 mt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Plugins
+              <div className="pt-4 pb-2 px-3">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  插件
+                </span>
               </div>
               {pluginItems.map(({ path, label, icon: Icon, pluginId }) => {
                 const active = location.pathname === path
@@ -65,35 +70,33 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
                   <Link
                     key={path}
                     to={path}
-                    className={`flex w-full items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer active:scale-95 ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                       active
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-200'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     }`}
                   >
                     <PluginErrorBoundary pluginId={pluginId} variant="icon">
-                      <Icon className={`h-4 w-4 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                      <Icon className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`} />
                     </PluginErrorBoundary>
-                    <span className="text-sm font-medium">{label}</span>
+                    <span>{label}</span>
                   </Link>
                 )
               })}
             </>
           )}
         </nav>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-100">
+          <div className="text-xs text-gray-400">v1.0.0</div>
+        </div>
       </aside>
 
-      <div className="flex-1 h-screen flex flex-col">
-        <header className="h-14 border-b border-gray-200 bg-white px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="h-5 w-5 text-blue-600" />
-            <span className="text-sm text-gray-600">实时知识助手</span>
-          </div>
-        </header>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50">
-          <div className="max-w-[1400px] mx-auto p-8">{children}</div>
-        </main>
-      </div>
+      {/* Main Content - 移除了冗余的 header */}
+      <main className="flex-1 h-screen overflow-y-auto overflow-x-hidden">
+        <div className="max-w-6xl mx-auto px-8 py-6">{children}</div>
+      </main>
     </div>
   )
 }
