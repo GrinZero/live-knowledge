@@ -1,0 +1,251 @@
+{
+  "repo_notes": [
+    {
+      "content": "请你确保使用简体中文输出 wiki 内容"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce the Live Knowledge system, explaining its purpose as an intelligent real-time screen monitoring and knowledge extraction application, and provide a high-level overview of its architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Architecture",
+      "purpose": "Explain the overall system architecture, including the Electron process model, key services, and how components interact",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Electron Process Model",
+      "purpose": "Detail the main process vs renderer process architecture, explaining the responsibilities of each and how they communicate",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "IPC Communication Layer",
+      "purpose": "Explain the Inter-Process Communication system, including the preload script, window.api interface, and IPC channel patterns",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Services",
+      "purpose": "Overview of the main process services including MonitoringService, DatabaseService, AIEngine, PluginManager, and PresentationService",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Monitoring & Knowledge Extraction",
+      "purpose": "Explain how the system continuously monitors screen content, detects changes, extracts information, and generates insights using AI",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "MonitoringService",
+      "purpose": "Deep dive into the MonitoringService, including screen watching, context capture windows, and the monitoring lifecycle",
+      "parent": "Monitoring & Knowledge Extraction",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Content Analysis Pipeline",
+      "purpose": "Explain how screen content is analyzed, including OCR extraction, tag generation, and context aggregation",
+      "parent": "Monitoring & Knowledge Extraction",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "AI Engine Integration",
+      "purpose": "Detail how the AI Engine processes context, generates insights, and produces suggested actions using LLM providers",
+      "parent": "Monitoring & Knowledge Extraction",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Knowledge Management",
+      "purpose": "Explain how knowledge items and insights are stored, retrieved, and displayed in the KnowledgePanel UI",
+      "parent": "Monitoring & Knowledge Extraction",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plugin System",
+      "purpose": "Comprehensive guide to the plugin architecture, explaining how plugins extend the system at input, core, and output phases",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plugin SDK & Interface",
+      "purpose": "Document the LiveKnowledgePlugin interface, PluginContext, and the lifecycle hooks (getContext, enrichPrompt, onAction, onEvent)",
+      "parent": "Plugin System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "PluginManager Service",
+      "purpose": "Explain how the PluginManager loads, registers, and executes plugins, including installation from various package formats",
+      "parent": "Plugin System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plugin Development Guide",
+      "purpose": "Tutorial on creating plugins, including the DevToolsPlugin example, package structure, and integration with main and renderer processes",
+      "parent": "Plugin System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plugin UI Integration",
+      "purpose": "Explain how renderer-side plugins work, including the plugin registry, dynamic route loading, and UI component registration",
+      "parent": "Plugin System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plugin Management UI",
+      "purpose": "Document the Plugins page UI for installing, uninstalling, enabling/disabling, and configuring plugins",
+      "parent": "Plugin System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "User Interface",
+      "purpose": "Overview of the React-based renderer process UI, including the design system, layout, and major pages",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Design System",
+      "purpose": "Document the design tokens and reusable UI components including Button, StatusBadge, StatCard, EmptyState, and SidePanel",
+      "parent": "User Interface",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Layout & Navigation",
+      "purpose": "Explain the Layout component, sidebar navigation, and dynamic plugin route integration",
+      "parent": "User Interface",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "KnowledgePanel Component",
+      "purpose": "Deep dive into the KnowledgePanel, including data loading, search/filter/sort, detail view, and real-time insight updates",
+      "parent": "User Interface",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Settings Page",
+      "purpose": "Document the Settings page, focusing on AI configuration (provider, API key, model selection) and the provider cache mechanism",
+      "parent": "User Interface",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "SchemaForm Component",
+      "purpose": "Explain the dynamic form generation system that renders forms from JSON schema definitions, used in plugin configuration",
+      "parent": "User Interface",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Data Models & Storage",
+      "purpose": "Document the core data models (KnowledgeItem, Insight, Tag, Action, etc.) and SQLite database schema",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "API Reference",
+      "purpose": "Complete reference of all IPC channels, window.api methods, and HTTP API endpoints exposed by the APIServer",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Development Guide",
+      "purpose": "Guide for developers contributing to the codebase, including setup, build process, and testing",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
