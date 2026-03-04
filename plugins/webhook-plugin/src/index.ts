@@ -1,15 +1,21 @@
 import { LiveKnowledgePlugin, PluginContext } from "@live-knowledge/plugin-sdk";
+import { basename } from "node:path";
+import { readFile } from "node:fs/promises";
+
+const MAX_ATTACHMENT_UPPER_BOUND = 8;
 
 interface WebhookConfig {
   url: string;
   headers?: Record<string, string>;
-  events?: string[]; // If empty, trigger on all events
+  events?: string[];
+  transferMode?: "json" | "multipart";
+  maxAttachmentCount?: number;
 }
 
 export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
-  version = "1.0.0";
+  version = "1.1.0";
   description =
     "Triggers external webhooks when knowledge or insights are generated.";
 
@@ -46,6 +52,19 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
                 enum: ["insight_generated", "knowledge_created"],
               },
             },
+            transferMode: {
+              type: "string",
+              title: "传输模式",
+              description: "json 仅发送结构化数据；multipart 会附带截图文件",
+              enum: ["json", "multipart"],
+            },
+            maxAttachmentCount: {
+              type: "number",
+              title: "最大附件数量",
+              description: "multipart 模式下最多上传多少张截图",
+              minimum: 1,
+              maximum: 8,
+            },
           },
         },
       },
@@ -60,6 +79,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
           "Content-Type": "application/json",
         },
         events: ["insight_generated", "knowledge_created"],
+        transferMode: "json",
+        maxAttachmentCount: 3,
       },
     ],
   };
@@ -70,7 +91,6 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     this.context = context;
     console.log("[WebhookPlugin] Initialized", context);
 
-    // Register API for history
     context.http.router.get("/history", async (_req, res) => {
       try {
         const items = await context.database.getKnowledgeItems(100);
@@ -96,6 +116,114 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
         res.status(500).json({ error: "Failed to fetch history" });
       }
     });
+  }
+
+  private collectScreenshotPaths(payload: Record<string, unknown>): string[] {
+    const pathCandidates = new Set<string>();
+
+    const walk = (value: unknown): void => {
+      if (!value) return;
+
+      if (typeof value === "string") {
+        const normalized = value.toLowerCase().replaceAll("\\", "/");
+        if (
+          (normalized.includes("/") || normalized.includes(":")) &&
+          (normalized.endsWith(".png") ||
+            normalized.endsWith(".jpg") ||
+            normalized.endsWith(".jpeg") ||
+            normalized.endsWith(".webp"))
+        ) {
+          pathCandidates.add(value);
+        }
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+
+      if (typeof value === "object") {
+        for (const [key, nested] of Object.entries(
+          value as Record<string, unknown>,
+        )) {
+          if (
+            key.toLowerCase().includes("screenshot") ||
+            key.toLowerCase().includes("image")
+          ) {
+            walk(nested);
+            continue;
+          }
+
+          if (typeof nested === "object") {
+            walk(nested);
+          }
+        }
+      }
+    };
+
+    walk(payload);
+    return [...pathCandidates];
+  }
+
+  private async sendJsonWebhook(
+    hook: WebhookConfig,
+    event: string,
+    payload: Record<string, unknown>,
+  ): Promise<Response> {
+    return fetch(hook.url, {
+      method: "POST",
+      headers: hook.headers || { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event,
+        timestamp: new Date().toISOString(),
+        payload,
+      }),
+    });
+  }
+
+  private async sendMultipartWebhook(
+    hook: WebhookConfig,
+    event: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ response: Response; uploadedFiles: string[] }> {
+    const formData = new FormData();
+    const files = this.collectScreenshotPaths(payload);
+    const maxAttachmentCount = Math.max(
+      1,
+      Math.min(hook.maxAttachmentCount ?? 3, MAX_ATTACHMENT_UPPER_BOUND),
+    );
+    const uploadedFiles: string[] = [];
+
+    formData.append("event", event);
+    formData.append("timestamp", new Date().toISOString());
+    formData.append("payload", JSON.stringify(payload));
+
+    for (const filePath of files.slice(0, maxAttachmentCount)) {
+      try {
+        const fileBuffer = await readFile(filePath);
+        const fileName = basename(filePath);
+        formData.append("files", new Blob([fileBuffer]), fileName);
+        uploadedFiles.push(fileName);
+      } catch (error) {
+        console.warn(
+          "[WebhookPlugin] Failed to attach screenshot:",
+          filePath,
+          error,
+        );
+      }
+    }
+
+    const headers = { ...(hook.headers || {}) };
+    delete headers["Content-Type"];
+
+    const response = await fetch(hook.url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    return { response, uploadedFiles };
   }
 
   hooks = {
@@ -125,17 +253,21 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
         try {
           console.log(`[WebhookPlugin] Triggering webhook: ${hook.url}`);
 
-          const response = await fetch(hook.url, {
-            method: "POST",
-            headers: hook.headers || { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              event,
-              timestamp: new Date().toISOString(),
-              payload,
-            }),
-          });
+          let response: Response;
+          let uploadedFiles: string[] = [];
 
-          // Save to history
+          if (hook.transferMode === "multipart") {
+            const result = await this.sendMultipartWebhook(
+              hook,
+              event,
+              payload,
+            );
+            response = result.response;
+            uploadedFiles = result.uploadedFiles;
+          } else {
+            response = await this.sendJsonWebhook(hook, event, payload);
+          }
+
           if (this.context) {
             try {
               await this.context.database.createKnowledgeItem({
@@ -147,6 +279,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
                   event,
                   status: response.status,
                   statusText: response.statusText,
+                  transferMode: hook.transferMode || "json",
+                  uploadedFiles,
                   payloadSummary: Object.keys(payload).join(", "),
                 }),
                 metadata: { url: hook.url, status: response.status },
@@ -162,7 +296,6 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
             error,
           );
 
-          // Save error to history
           if (this.context) {
             try {
               await this.context.database.createKnowledgeItem({

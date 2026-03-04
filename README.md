@@ -225,3 +225,45 @@ Live Knowledge 设计为高度可扩展。插件可以：
 ## 📄 许可证
 
 MIT
+
+## Web Demo (Next.js)
+
+新增 `apps/web-demo` 作为独立可部署的 webhook 分析面板，可运行在与 Electron 不同的宿主机。
+
+### 目标
+
+- 接收 webhook-plugin 推送的数据。
+- 在本地磁盘保存截图附件（无 CDN 场景）。
+- 支持二次 AI 分析并展示结果。
+
+### 启动
+
+```bash
+pnpm --filter @live-knowledge/web-demo dev
+```
+
+默认端口 `3010`。
+
+### Webhook 对接建议
+
+在 `webhook-plugin` 中给目标 webhook 增加：
+
+- `transferMode: "multipart"`（发送事件 JSON + 截图文件）
+- `maxAttachmentCount`（限制单次上传附件数量）
+
+Web Demo 接口：
+
+- `POST /api/webhook`：支持 `application/json` 和 `multipart/form-data`
+- `GET /api/events`：查看已落盘事件
+- `POST /api/analyze`：对指定事件执行 AI 分析
+
+### AI 配置
+
+Web Demo 读取以下环境变量：
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+

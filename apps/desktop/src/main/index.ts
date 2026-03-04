@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog, Tray, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -27,6 +27,63 @@ let presentationService: PresentationService | null = null
 let apiServer: APIServer | null = null
 let aiEngine: AIEngine | null = null
 let pluginManager: PluginManager | null = null
+let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
+let refreshTrayMenu: (() => void) | null = null
+
+function createTray(): void {
+  if (tray) {
+    return
+  }
+
+  tray = new Tray(icon)
+  tray.setToolTip('Live Knowledge')
+
+  const updateTrayMenu = (): void => {
+    const isVisible = mainWindow?.isVisible() ?? false
+    const menu = Menu.buildFromTemplate([
+      {
+        label: isVisible ? '隐藏窗口' : '显示窗口',
+        click: () => {
+          if (!mainWindow) return
+
+          if (mainWindow.isVisible()) {
+            mainWindow.hide()
+          } else {
+            mainWindow.show()
+            mainWindow.focus()
+          }
+        }
+      },
+      {
+        label: '退出',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+
+    tray?.setContextMenu(menu)
+  }
+  refreshTrayMenu = updateTrayMenu
+
+  tray.on('click', () => {
+    if (!mainWindow) return
+
+    if (mainWindow.isVisible()) {
+      mainWindow.hide()
+    } else {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+
+    updateTrayMenu()
+  })
+
+  updateTrayMenu()
+}
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -46,6 +103,24 @@ function createWindow(): BrowserWindow {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  mainWindow.on('show', () => {
+    if (tray) {
+      tray.setToolTip('Live Knowledge')
+    }
+    refreshTrayMenu?.()
+  })
+
+  mainWindow.on('hide', () => {
+    refreshTrayMenu?.()
+  })
+
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      mainWindow.hide()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -385,27 +460,38 @@ app.whenReady().then(async () => {
     return
   }
 
-  const mainWindow = createWindow()
+  mainWindow = createWindow()
+  createTray()
 
   // Set up monitoring service event handlers
   if (monitoringService) {
     monitoringService.on('insightGenerated', (insight) => {
-      mainWindow.webContents.send('monitoring:insight', insight)
+      mainWindow?.webContents.send('monitoring:insight', insight)
     })
 
     monitoringService.on('statusChanged', (status) => {
-      mainWindow.webContents.send('monitoring:status', status)
+      mainWindow?.webContents.send('monitoring:status', status)
     })
 
     monitoringService.on('error', (error) => {
-      mainWindow.webContents.send('monitoring:error', error)
+      mainWindow?.webContents.send('monitoring:error', error)
     })
   }
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow()
+      createTray()
+      refreshTrayMenu?.()
+      return
+    }
+
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
   })
 })
 
@@ -427,6 +513,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 // In this file you can include the rest of your app's specific main process
