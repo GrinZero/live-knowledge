@@ -56,3 +56,11 @@ pnpm --filter live-knowledge-app dev
 ```bash
 curl http://127.0.0.1:3010/api/events
 ```
+
+## Tray icon guideline
+
+The app now normalizes tray icon size by platform to avoid blurry or oversized tray icons:
+
+- macOS: 18x18 (template image)
+- Windows: 16x16
+- Linux: 24x24

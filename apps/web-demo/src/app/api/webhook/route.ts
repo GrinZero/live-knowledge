@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { saveEvent } from '@/lib/store'
+import { createHash, randomUUID } from 'node:crypto'
+import { analyzeWithAI } from '@/lib/ai'
+import { convertWithMarkItDown } from '@/lib/markitdown'
+import type { DetectedType } from '@/lib/store'
+import { saveEvent, updateEventAnalysis } from '@/lib/store'
+
+const duplicateWindowMs = 8000
+const recentSignatureMap = new Map<string, number>()
 
 async function saveIncomingFiles(files: File[], eventId: string): Promise<string[]> {
   const uploadDir = path.join(process.cwd(), 'public', 'uploads', eventId)
@@ -21,6 +27,25 @@ async function saveIncomingFiles(files: File[], eventId: string): Promise<string
   return paths
 }
 
+function buildSignature(input: { event: string; payload: Record<string, unknown> }): string {
+  return createHash('sha1').update(`${input.event}:${JSON.stringify(input.payload)}`).digest('hex')
+}
+
+function isDuplicate(signature: string): boolean {
+  const now = Date.now()
+  const latest = recentSignatureMap.get(signature)
+  recentSignatureMap.set(signature, now)
+
+  for (const [key, value] of recentSignatureMap.entries()) {
+    if (now - value > duplicateWindowMs) {
+      recentSignatureMap.delete(key)
+    }
+  }
+
+  if (!latest) return false
+  return now - latest < duplicateWindowMs
+}
+
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get('content-type') || ''
   const id = randomUUID()
@@ -29,6 +54,8 @@ export async function POST(req: NextRequest) {
   let event = 'unknown_event'
   let payload: Record<string, unknown> = {}
   let attachments: string[] = []
+  let detectedType: DetectedType = 'unknown'
+  let markdown: string | undefined
 
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData()
@@ -37,6 +64,14 @@ export async function POST(req: NextRequest) {
     const payloadString = String(form.get('payload') || '{}')
     payload = JSON.parse(payloadString) as Record<string, unknown>
 
+    const incomingType = String(form.get('detectedType') || '')
+    if (incomingType) {
+      detectedType = incomingType as typeof detectedType
+    }
+
+    const markdownValue = form.get('markdown')
+    markdown = typeof markdownValue === 'string' ? markdownValue : undefined
+
     const files = form.getAll('files').filter((item): item is File => item instanceof File)
     attachments = await saveIncomingFiles(files, id)
   } else {
@@ -44,9 +79,14 @@ export async function POST(req: NextRequest) {
       event?: string
       payload?: Record<string, unknown>
       payloadBase64Images?: string[]
+      detectedType?: DetectedType
+      markdown?: string
     }
+
     event = body.event || event
     payload = body.payload || {}
+    detectedType = body.detectedType || detectedType
+    markdown = body.markdown
 
     const maybeBase64Images = body.payloadBase64Images || []
     if (maybeBase64Images.length > 0) {
@@ -63,7 +103,34 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await saveEvent({ id, event, payload, attachments, createdAt })
+  const signature = buildSignature({ event, payload })
+  if (isDuplicate(signature)) {
+    return NextResponse.json({ success: true, ignored: true, reason: 'debounced_duplicate' })
+  }
 
-  return NextResponse.json({ success: true, id, attachmentsCount: attachments.length })
+  if (!markdown && attachments.length > 0) {
+    markdown = (await convertWithMarkItDown(attachments[0])) || undefined
+  }
+
+  await saveEvent({ id, event, payload, attachments, createdAt, detectedType, markdown })
+
+  if (detectedType === 'problem_solving') {
+    queueMicrotask(async () => {
+      try {
+        const prompt = '请直接给出题目的解题思路、关键步骤和最终答案。'
+        const result = await analyzeWithAI({
+          userPrompt: prompt,
+          payload,
+          attachments,
+          markdown,
+          detectedType,
+        })
+        await updateEventAnalysis(id, prompt, result)
+      } catch (error) {
+        console.error('[web-demo] auto analyze failed:', error)
+      }
+    })
+  }
+
+  return NextResponse.json({ success: true, id, attachmentsCount: attachments.length, detectedType })
 }

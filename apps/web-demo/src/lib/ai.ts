@@ -1,7 +1,11 @@
+import type { DetectedType } from './store'
+
 export async function analyzeWithAI(input: {
   userPrompt: string
   payload: Record<string, unknown>
   attachments: string[]
+  markdown?: string
+  detectedType?: DetectedType
 }): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -11,24 +15,33 @@ export async function analyzeWithAI(input: {
   const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 
-  const summaryPrompt = `你是一个屏幕内容分析助手。\n用户问题: ${input.userPrompt}\n事件数据: ${JSON.stringify(
+  const scenarioHint =
+    input.detectedType === 'problem_solving'
+      ? '这是题解场景，请优先输出解题步骤、关键知识点和最终答案。'
+      : '请输出结构化建议，结论优先。'
+
+  const summaryPrompt = `你是一个屏幕内容分析助手。\n用户问题: ${input.userPrompt}\n检测类型: ${input.detectedType || 'unknown'}\n事件数据: ${JSON.stringify(
     input.payload,
-  )}\n附件文件: ${input.attachments.join(', ') || '无'}\n请输出简洁可执行建议。`
+  )}\nMarkdown数据: ${input.markdown || '无'}\n附件文件: ${input.attachments.join(', ') || '无'}\n${scenarioHint}`
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: '你擅长理解截图上下文与结构化事件。' },
-        { role: 'user', content: summaryPrompt }
+        {
+          role: 'system',
+          content:
+            '你擅长理解截图上下文与结构化事件。输出请简洁、准确，并在题解场景明确给出可执行步骤。',
+        },
+        { role: 'user', content: summaryPrompt },
       ],
-      temperature: 0.2
-    })
+      temperature: 0.2,
+    }),
   })
 
   if (!response.ok) {

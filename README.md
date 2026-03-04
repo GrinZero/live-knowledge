@@ -250,6 +250,8 @@ pnpm --filter @live-knowledge/web-demo dev
 
 - `transferMode: "multipart"`（发送事件 JSON + 截图文件）
 - `maxAttachmentCount`（限制单次上传附件数量）
+- `enableTypeDetection` + `allowedContentTypes`（先识别事件类型再决定是否发送）
+- `resourceMode: "markdown"`（输出统一 markdown 载荷，便于消费者侧处理）
 
 Web Demo 接口：
 
@@ -332,3 +334,15 @@ OPENAI_MODEL=gpt-4o-mini
 ```
 
 未配置时，`/api/analyze` 会返回本地回退提示。
+
+可选开启 MarkItDown 自动转换：
+
+```env
+MARKITDOWN_AUTO_CONVERT=true
+```
+
+并在运行环境安装：
+
+```bash
+python -m pip install markitdown
+```

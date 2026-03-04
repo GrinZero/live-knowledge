@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeWithAI } from '@/lib/ai'
-import { loadEvents } from '@/lib/store'
+import { loadEvents, updateEventAnalysis } from '@/lib/store'
 
 export async function POST(req: NextRequest) {
   const { eventId, userPrompt } = (await req.json()) as { eventId?: string; userPrompt?: string }
@@ -21,8 +21,11 @@ export async function POST(req: NextRequest) {
       userPrompt,
       payload: record.payload,
       attachments: record.attachments,
+      markdown: record.markdown,
+      detectedType: record.detectedType,
     })
 
+    await updateEventAnalysis(record.id, userPrompt, result)
     return NextResponse.json({ result })
   } catch (error) {
     return NextResponse.json(

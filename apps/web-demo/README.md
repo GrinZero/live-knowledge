@@ -62,6 +62,8 @@ curl http://127.0.0.1:3010/api/events
 
 若返回事件列表且 `attachments` 有 `/uploads/<eventId>/...` 路径，说明截图直传与落盘成功。
 
+Web Demo 内置服务端防抖：同类 payload 在 8 秒窗口内重复推送会自动忽略，避免高频事件冲垮分析流程。
+
 ## 接口
 
 - `POST /api/webhook`
@@ -79,3 +81,19 @@ OPENAI_MODEL=gpt-4o-mini
 ```
 
 未配置 `OPENAI_API_KEY` 时，`/api/analyze` 会返回回退提示文本。
+
+### MarkItDown（可选）
+
+如果你希望统一把截图/附件转成 markdown 后再分析，可开启：
+
+```env
+MARKITDOWN_AUTO_CONVERT=true
+```
+
+并安装：
+
+```bash
+python -m pip install markitdown
+```
+
+此外，也可以在 webhook-plugin 里设置 `resourceMode: "markdown"`，由插件直接携带 markdown 载荷。

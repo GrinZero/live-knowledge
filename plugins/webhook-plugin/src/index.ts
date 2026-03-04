@@ -4,18 +4,38 @@ import { readFile } from "node:fs/promises";
 
 const MAX_ATTACHMENT_UPPER_BOUND = 8;
 
+type TransferMode = "json" | "multipart";
+type ContentType =
+  | "problem_solving"
+  | "coding"
+  | "meeting"
+  | "document"
+  | "unknown";
+type ResourceMode = "raw" | "markdown";
+
 interface WebhookConfig {
   url: string;
   headers?: Record<string, string>;
   events?: string[];
-  transferMode?: "json" | "multipart";
+  transferMode?: TransferMode;
   maxAttachmentCount?: number;
+  resourceMode?: ResourceMode;
+  enableTypeDetection?: boolean;
+  allowedContentTypes?: ContentType[];
+}
+
+interface EnvelopePayload {
+  event: string;
+  timestamp: string;
+  payload: Record<string, unknown>;
+  detectedType: ContentType;
+  markdown?: string;
 }
 
 export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
-  version = "1.1.0";
+  version = "1.2.0";
   description =
     "Triggers external webhooks when knowledge or insights are generated.";
 
@@ -58,12 +78,41 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
               description: "json 仅发送结构化数据；multipart 会附带截图文件",
               enum: ["json", "multipart"],
             },
+            resourceMode: {
+              type: "string",
+              title: "资源模式",
+              description:
+                "raw 发送结构化 payload；markdown 会额外附带 markdown 文本便于消费者统一处理。",
+              enum: ["raw", "markdown"],
+            },
             maxAttachmentCount: {
               type: "number",
               title: "最大附件数量",
               description: "multipart 模式下最多上传多少张截图",
               minimum: 1,
               maximum: 8,
+            },
+            enableTypeDetection: {
+              type: "boolean",
+              title: "启用类型识别",
+              description: "先识别事件内容类型，再决定是否发送。",
+              default: false,
+            },
+            allowedContentTypes: {
+              type: "array",
+              title: "允许发送的内容类型",
+              description:
+                "只有识别结果命中该列表时才发送（启用类型识别时生效）。",
+              items: {
+                type: "string",
+                enum: [
+                  "problem_solving",
+                  "coding",
+                  "meeting",
+                  "document",
+                  "unknown",
+                ],
+              },
             },
           },
         },
@@ -80,6 +129,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
         },
         events: ["insight_generated", "knowledge_created"],
         transferMode: "json",
+        resourceMode: "raw",
+        enableTypeDetection: false,
         maxAttachmentCount: 3,
       },
     ],
@@ -166,38 +217,132 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     return [...pathCandidates];
   }
 
-  private async sendJsonWebhook(
-    hook: WebhookConfig,
+  private detectContentType(payload: Record<string, unknown>): ContentType {
+    const text = JSON.stringify(payload).toLowerCase();
+
+    if (
+      text.includes("题") ||
+      text.includes("problem") ||
+      text.includes("答案") ||
+      text.includes("解题") ||
+      text.includes("solution")
+    ) {
+      return "problem_solving";
+    }
+
+    if (
+      text.includes("error") ||
+      text.includes("bug") ||
+      text.includes("stack") ||
+      text.includes("代码") ||
+      text.includes("function")
+    ) {
+      return "coding";
+    }
+
+    if (
+      text.includes("meeting") ||
+      text.includes("calendar") ||
+      text.includes("会议")
+    ) {
+      return "meeting";
+    }
+
+    if (
+      text.includes("文档") ||
+      text.includes("markdown") ||
+      text.includes("doc")
+    ) {
+      return "document";
+    }
+
+    return "unknown";
+  }
+
+  private createMarkdown(
     event: string,
     payload: Record<string, unknown>,
+    detectedType: ContentType,
+  ): string {
+    return [
+      `# Live Knowledge Event`,
+      ``,
+      `- event: ${event}`,
+      `- detectedType: ${detectedType}`,
+      `- timestamp: ${new Date().toISOString()}`,
+      ``,
+      `## Payload`,
+      "```json",
+      JSON.stringify(payload, null, 2),
+      "```",
+    ].join("\n");
+  }
+
+  private buildEnvelope(
+    event: string,
+    payload: Record<string, unknown>,
+    hook: WebhookConfig,
+  ): EnvelopePayload {
+    const detectedType = hook.enableTypeDetection
+      ? this.detectContentType(payload)
+      : "unknown";
+
+    const envelope: EnvelopePayload = {
+      event,
+      timestamp: new Date().toISOString(),
+      payload,
+      detectedType,
+    };
+
+    if (hook.resourceMode === "markdown") {
+      envelope.markdown = this.createMarkdown(event, payload, detectedType);
+    }
+
+    return envelope;
+  }
+
+  private shouldSendByType(hook: WebhookConfig, type: ContentType): boolean {
+    if (!hook.enableTypeDetection) {
+      return true;
+    }
+
+    if (!hook.allowedContentTypes || hook.allowedContentTypes.length === 0) {
+      return true;
+    }
+
+    return hook.allowedContentTypes.includes(type);
+  }
+
+  private async sendJsonWebhook(
+    hook: WebhookConfig,
+    envelope: EnvelopePayload,
   ): Promise<Response> {
     return fetch(hook.url, {
       method: "POST",
       headers: hook.headers || { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event,
-        timestamp: new Date().toISOString(),
-        payload,
-      }),
+      body: JSON.stringify(envelope),
     });
   }
 
   private async sendMultipartWebhook(
     hook: WebhookConfig,
-    event: string,
-    payload: Record<string, unknown>,
+    envelope: EnvelopePayload,
   ): Promise<{ response: Response; uploadedFiles: string[] }> {
     const formData = new FormData();
-    const files = this.collectScreenshotPaths(payload);
+    const files = this.collectScreenshotPaths(envelope.payload);
     const maxAttachmentCount = Math.max(
       1,
       Math.min(hook.maxAttachmentCount ?? 3, MAX_ATTACHMENT_UPPER_BOUND),
     );
     const uploadedFiles: string[] = [];
 
-    formData.append("event", event);
-    formData.append("timestamp", new Date().toISOString());
-    formData.append("payload", JSON.stringify(payload));
+    formData.append("event", envelope.event);
+    formData.append("timestamp", envelope.timestamp);
+    formData.append("detectedType", envelope.detectedType);
+    formData.append("payload", JSON.stringify(envelope.payload));
+    if (envelope.markdown) {
+      formData.append("markdown", envelope.markdown);
+    }
 
     for (const filePath of files.slice(0, maxAttachmentCount)) {
       try {
@@ -250,6 +395,14 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
         if (!hook.url) continue;
 
+        const envelope = this.buildEnvelope(event, payload, hook);
+        if (!this.shouldSendByType(hook, envelope.detectedType)) {
+          console.log(
+            `[WebhookPlugin] Skip webhook ${hook.url} because detected type is ${envelope.detectedType}`,
+          );
+          continue;
+        }
+
         try {
           console.log(`[WebhookPlugin] Triggering webhook: ${hook.url}`);
 
@@ -257,15 +410,11 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
           let uploadedFiles: string[] = [];
 
           if (hook.transferMode === "multipart") {
-            const result = await this.sendMultipartWebhook(
-              hook,
-              event,
-              payload,
-            );
+            const result = await this.sendMultipartWebhook(hook, envelope);
             response = result.response;
             uploadedFiles = result.uploadedFiles;
           } else {
-            response = await this.sendJsonWebhook(hook, event, payload);
+            response = await this.sendJsonWebhook(hook, envelope);
           }
 
           if (this.context) {
@@ -280,6 +429,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
                   status: response.status,
                   statusText: response.statusText,
                   transferMode: hook.transferMode || "json",
+                  resourceMode: hook.resourceMode || "raw",
+                  detectedType: envelope.detectedType,
                   uploadedFiles,
                   payloadSummary: Object.keys(payload).join(", "),
                 }),

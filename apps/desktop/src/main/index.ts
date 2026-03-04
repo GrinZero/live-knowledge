@@ -1,4 +1,15 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog, Tray, Menu } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  net,
+  dialog,
+  Tray,
+  Menu,
+  nativeImage
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -37,7 +48,19 @@ function createTray(): void {
     return
   }
 
-  tray = new Tray(icon)
+  const trayIcon = nativeImage.createFromPath(icon)
+  const traySizedIcon =
+    process.platform === 'darwin'
+      ? trayIcon.resize({ width: 18, height: 18 })
+      : process.platform === 'win32'
+        ? trayIcon.resize({ width: 16, height: 16 })
+        : trayIcon.resize({ width: 24, height: 24 })
+
+  if (process.platform === 'darwin') {
+    traySizedIcon.setTemplateImage(true)
+  }
+
+  tray = new Tray(traySizedIcon)
   tray.setToolTip('Live Knowledge')
 
   const updateTrayMenu = (): void => {
