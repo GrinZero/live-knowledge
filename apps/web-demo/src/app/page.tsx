@@ -21,8 +21,10 @@ export default function HomePage() {
   const [question, setQuestion] = useState(DEFAULT_QUESTION)
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(false)
-  const [autoAnalyze, setAutoAnalyze] = useState(true)
+  const [headerCollapsed, setHeaderCollapsed] = useState(false)
+  const [eventListCollapsed, setEventListCollapsed] = useState(false)
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const latestIdRef = useRef<string>('')
 
   const selectedEvent = useMemo(
     () => events.find((item) => item.id === selectedId) || events[0],
@@ -32,10 +34,35 @@ export default function HomePage() {
   const fetchEvents = async () => {
     const response = await fetch('/api/events', { cache: 'no-store' })
     const data = (await response.json()) as EventRecord[]
+
+    const latestIncoming = data[0]?.id
+    const previousLatest = latestIdRef.current
+
     setEvents(data)
-    if (!selectedId && data.length > 0) {
-      setSelectedId(data[0].id)
+
+    if (!latestIncoming) {
+      return
     }
+
+    if (!selectedId) {
+      setSelectedId(latestIncoming)
+      latestIdRef.current = latestIncoming
+      return
+    }
+
+    if (latestIncoming !== previousLatest) {
+      // 新事件来了，自动切到最新事件
+      setSelectedId(latestIncoming)
+      latestIdRef.current = latestIncoming
+      return
+    }
+
+    // 选中的事件被删除或不存在时兜底
+    if (!data.some((item) => item.id === selectedId)) {
+      setSelectedId(latestIncoming)
+    }
+
+    latestIdRef.current = latestIncoming
   }
 
   useEffect(() => {
@@ -45,7 +72,7 @@ export default function HomePage() {
     }, 5000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [selectedId])
 
   const runAnalyze = async (target?: EventRecord) => {
     const eventToAnalyze = target || selectedEvent
@@ -68,7 +95,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    if (!autoAnalyze || !selectedEvent) return
+    if (!selectedEvent) return
 
     if (autoTimerRef.current) {
       clearTimeout(autoTimerRef.current)
@@ -81,48 +108,63 @@ export default function HomePage() {
     return () => {
       if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
     }
-  }, [selectedEvent?.id, autoAnalyze, question])
+  }, [selectedEvent?.id, question])
 
   return (
     <main className="container">
-      <header className="hero card">
-        <h1>Live Knowledge · 题解预判面板</h1>
-        <p>自动接收 webhook 事件，优先为题目场景提前生成思路与答案。</p>
-        <div className="meta-row">
-          <span>Webhook: POST /api/webhook</span>
-          <span>轮询刷新: 5s</span>
-          <label>
-            <input type="checkbox" checked={autoAnalyze} onChange={(e) => setAutoAnalyze(e.target.checked)} />
-            自动分析
-          </label>
+      <section className="card hero">
+        <div className="collapse-row">
+          <h1>Live Knowledge · 题解预判面板</h1>
+          <button className="collapse-btn" onClick={() => setHeaderCollapsed((v) => !v)}>
+            {headerCollapsed ? '展开' : '折叠'}
+          </button>
         </div>
-      </header>
+
+        {!headerCollapsed && (
+          <>
+            <p>自动接收 webhook 事件，优先为题目场景提前生成思路与答案。</p>
+            <div className="meta-row">
+              <span>Webhook: POST /api/webhook</span>
+              <span>轮询刷新: 5s</span>
+              <span>分析触发: 自动（防抖 1.2s）</span>
+            </div>
+          </>
+        )}
+      </section>
 
       <section className="grid">
         <aside className="card left-panel">
           <div className="panel-title-row">
             <h3>事件流</h3>
-            <button onClick={fetchEvents}>刷新</button>
-          </div>
-          <div className="events-list">
-            {events.map((item) => (
-              <button
-                key={item.id}
-                className={`event-item ${selectedEvent?.id === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  setSelectedId(item.id)
-                  if (item.analysis?.result) setResult(item.analysis.result)
-                }}
-              >
-                <div className="event-top">
-                  <strong>{item.detectedType || 'unknown'}</strong>
-                  <span>{new Date(item.createdAt).toLocaleTimeString()}</span>
-                </div>
-                <div>{item.event}</div>
+            <div className="inline-actions">
+              <button onClick={fetchEvents}>刷新</button>
+              <button className="collapse-btn" onClick={() => setEventListCollapsed((v) => !v)}>
+                {eventListCollapsed ? '展开' : '折叠'}
               </button>
-            ))}
-            {events.length === 0 && <p>暂无事件，等待桌面端推送...</p>}
+            </div>
           </div>
+
+          {!eventListCollapsed && (
+            <div className="events-list">
+              {events.map((item) => (
+                <button
+                  key={item.id}
+                  className={`event-item ${selectedEvent?.id === item.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedId(item.id)
+                    if (item.analysis?.result) setResult(item.analysis.result)
+                  }}
+                >
+                  <div className="event-top">
+                    <strong>{item.detectedType || 'unknown'}</strong>
+                    <span>{new Date(item.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div>{item.event}</div>
+                </button>
+              ))}
+              {events.length === 0 && <p>暂无事件，等待桌面端推送...</p>}
+            </div>
+          )}
         </aside>
 
         <section className="card right-panel">
@@ -150,16 +192,14 @@ export default function HomePage() {
                 ))}
               </div>
 
-              <h3>分析控制</h3>
+              <h3>分析输入（自动触发）</h3>
               <textarea rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} />
-              <button onClick={() => runAnalyze()} disabled={loading} style={{ marginTop: 8 }}>
-                {loading ? '分析中...' : '立即分析'}
-              </button>
+              {loading && <p className="loading-tip">AI 正在自动分析最新事件...</p>}
 
               {(result || selectedEvent.analysis?.result) && (
                 <div className="answer-box">
-                  <h4>AI 结果</h4>
-                  <pre>{result || selectedEvent.analysis?.result}</pre>
+                  <h4>AI 结果（自动）</h4>
+                  <pre className="answer-content">{result || selectedEvent.analysis?.result}</pre>
                 </div>
               )}
             </>
