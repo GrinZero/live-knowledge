@@ -137,7 +137,7 @@ export default function HomePage() {
 
   return (
     <main className="container">
-      <section className="hero">
+      <section className={`hero ${headerCollapsed ? 'collapsed' : ''}`}>
         <div className="hero-row">
           <div>
             <p className="eyebrow">LIVE KNOWLEDGE</p>
@@ -160,8 +160,8 @@ export default function HomePage() {
         )}
       </section>
 
-      <section className="grid">
-        <aside className="panel panel-stream">
+      <section className={`grid ${eventListCollapsed ? 'stream-collapsed' : ''}`}>
+        <aside className={`panel panel-stream ${eventListCollapsed ? 'collapsed' : ''}`}>
           <div className="panel-header">
             <h3>事件流</h3>
             <div className="panel-actions">
@@ -178,7 +178,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {!eventListCollapsed && (
+          {!eventListCollapsed ? (
             <div className="events-list">
               {events.map((item) => (
                 <button
@@ -198,6 +198,8 @@ export default function HomePage() {
               ))}
               {events.length === 0 && <p className="muted">暂无事件，等待桌面端推送...</p>}
             </div>
+          ) : (
+            <div className="stream-collapsed-hint muted">事件流已折叠</div>
           )}
         </aside>
 
