@@ -32,3 +32,27 @@ $ pnpm build:mac
 # For Linux
 $ pnpm build:linux
 ```
+
+## Debug with Web Demo Locally
+
+If you want to debug desktop + webhook + web viewer end-to-end locally:
+
+1. Start web demo in one terminal:
+
+```bash
+pnpm --filter @live-knowledge/web-demo dev
+```
+
+2. Start desktop app in another terminal:
+
+```bash
+pnpm --filter live-knowledge-app dev
+```
+
+3. Configure `webhook-plugin` target URL as `http://127.0.0.1:3010/api/webhook` and set `transferMode` to `multipart`.
+
+4. Trigger monitoring in desktop app, then verify web demo receives events:
+
+```bash
+curl http://127.0.0.1:3010/api/events
+```

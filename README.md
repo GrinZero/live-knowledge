@@ -267,3 +267,68 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
 ```
 
+### 本地联调（Desktop + Web Demo）
+
+> 目标：在本机同时跑 Electron 主程序和 `web-demo`，让 `webhook-plugin` 把截图直传到 `web-demo` 并在网页上查看分析。
+
+1. 安装依赖（仓库根目录）
+
+```bash
+pnpm install
+```
+
+2. 启动 Web Demo（终端 A）
+
+```bash
+pnpm --filter @live-knowledge/web-demo dev
+```
+
+- 默认地址：`http://127.0.0.1:3010`
+- 事件接口：`GET http://127.0.0.1:3010/api/events`
+
+3. 启动桌面主程序（终端 B）
+
+```bash
+pnpm --filter live-knowledge-app dev
+```
+
+4. 在桌面端插件设置里配置 webhook-plugin
+
+建议配置：
+
+```json
+{
+  "webhooks": [
+    {
+      "url": "http://127.0.0.1:3010/api/webhook",
+      "transferMode": "multipart",
+      "maxAttachmentCount": 3,
+      "events": ["insight_generated", "knowledge_created"],
+      "headers": {
+        "x-source": "live-knowledge-desktop"
+      }
+    }
+  ]
+}
+```
+
+5. 在桌面端触发一次监控/洞察后，验证链路
+
+- Web Demo 页面查看事件与截图：`http://127.0.0.1:3010`
+- 或直接请求事件 API：
+
+```bash
+curl http://127.0.0.1:3010/api/events
+```
+
+6. 在 Web Demo 配置 AI（可选）
+
+在 `apps/web-demo/.env.local` 中设置：
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+
+未配置时，`/api/analyze` 会返回本地回退提示。
