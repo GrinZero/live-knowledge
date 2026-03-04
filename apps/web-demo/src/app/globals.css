@@ -256,6 +256,11 @@ pre {
   background: #f5f9ff;
 }
 
+.answer-box.priority {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
 .answer-content {
   font-size: 20px;
   line-height: 1.7;
@@ -264,6 +269,15 @@ pre {
 
 .muted {
   color: #6e6e73;
+}
+
+details {
+  margin-top: 8px;
+}
+
+details > summary {
+  cursor: pointer;
+  color: #424245;
 }
 
 @media (max-width: 980px) {

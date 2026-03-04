@@ -1,4 +1,5 @@
 import { LiveKnowledgePlugin, PluginContext } from "@live-knowledge/plugin-sdk";
+import { spawn } from "node:child_process";
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
 
@@ -12,6 +13,7 @@ type ContentType =
   | "document"
   | "unknown";
 type ResourceMode = "raw" | "markdown";
+type EventMatchMode = "exact" | "prefix";
 
 interface WebhookConfig {
   url: string;
@@ -22,6 +24,9 @@ interface WebhookConfig {
   resourceMode?: ResourceMode;
   enableTypeDetection?: boolean;
   allowedContentTypes?: ContentType[];
+  customEvents?: string[];
+  eventMatchMode?: EventMatchMode;
+  markitdownEnabled?: boolean;
 }
 
 interface EnvelopePayload {
@@ -35,7 +40,7 @@ interface EnvelopePayload {
 export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
-  version = "1.2.0";
+  version = "1.3.0";
   description =
     "Triggers external webhooks when knowledge or insights are generated.";
 
@@ -66,11 +71,25 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
             events: {
               type: "array",
               title: "触发事件",
-              description: "监听的事件类型（留空则监听所有）",
+              description:
+                "监听的事件类型（支持任意字符串；留空则监听所有），可填写 insight_generated、knowledge_created 或其它插件事件。",
               items: {
                 type: "string",
-                enum: ["insight_generated", "knowledge_created"],
               },
+            },
+            customEvents: {
+              type: "array",
+              title: "自定义事件",
+              description: "手动补充事件名，会与 events 合并后匹配。",
+              items: {
+                type: "string",
+              },
+            },
+            eventMatchMode: {
+              type: "string",
+              title: "事件匹配模式",
+              description: "exact 精确匹配；prefix 前缀匹配。",
+              enum: ["exact", "prefix"],
             },
             transferMode: {
               type: "string",
@@ -114,6 +133,13 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
                 ],
               },
             },
+            markitdownEnabled: {
+              type: "boolean",
+              title: "启用 MarkItDown",
+              description:
+                "在 Electron 侧尝试把截图转换为 markdown 并随 webhook 发送。",
+              default: false,
+            },
           },
         },
       },
@@ -131,6 +157,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
         transferMode: "json",
         resourceMode: "raw",
         enableTypeDetection: false,
+        eventMatchMode: "exact",
+        markitdownEnabled: false,
         maxAttachmentCount: 3,
       },
     ],
@@ -278,6 +306,61 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     ].join("\n");
   }
 
+  private async convertWithMarkItDown(
+    filePath?: string,
+  ): Promise<string | null> {
+    if (!filePath) return null;
+
+    return await new Promise((resolve) => {
+      const child = spawn("python", ["-m", "markitdown", filePath], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      child.on("close", (code) => {
+        if (code === 0 && stdout.trim().length > 0) {
+          resolve(stdout.trim());
+          return;
+        }
+
+        if (stderr.trim()) {
+          console.warn(
+            "[WebhookPlugin] markitdown conversion skipped:",
+            stderr,
+          );
+        }
+        resolve(null);
+      });
+
+      child.on("error", () => resolve(null));
+    });
+  }
+
+  private shouldSendByEvent(hook: WebhookConfig, event: string): boolean {
+    const eventRules = [
+      ...(hook.events || []),
+      ...(hook.customEvents || []),
+    ].filter(Boolean);
+    if (eventRules.length === 0) return true;
+
+    const mode = hook.eventMatchMode || "exact";
+    if (mode === "prefix") {
+      return eventRules.some((rule) => event.startsWith(rule));
+    }
+
+    return eventRules.includes(event);
+  }
+
   private buildEnvelope(
     event: string,
     payload: Record<string, unknown>,
@@ -385,17 +468,22 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
       }
 
       for (const hook of webhooks) {
-        if (
-          hook.events &&
-          hook.events.length > 0 &&
-          !hook.events.includes(event)
-        ) {
+        if (!this.shouldSendByEvent(hook, event)) {
           continue;
         }
 
         if (!hook.url) continue;
 
         const envelope = this.buildEnvelope(event, payload, hook);
+        if (hook.markitdownEnabled && !envelope.markdown) {
+          const screenshotCandidates = this.collectScreenshotPaths(payload);
+          const fromMarkitdown = await this.convertWithMarkItDown(
+            screenshotCandidates[0],
+          );
+          if (fromMarkitdown) {
+            envelope.markdown = fromMarkitdown;
+          }
+        }
         if (!this.shouldSendByType(hook, envelope.detectedType)) {
           console.log(
             `[WebhookPlugin] Skip webhook ${hook.url} because detected type is ${envelope.detectedType}`,

@@ -49,7 +49,7 @@ export default function HomePage() {
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(false)
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
-  const [eventListCollapsed, setEventListCollapsed] = useState(false)
+  const [eventListCollapsed, setEventListCollapsed] = useState(true)
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null)
   const latestIdRef = useRef<string>('')
 
@@ -207,10 +207,21 @@ export default function HomePage() {
           <h3>当前事件</h3>
           {selectedEvent ? (
             <>
+              {(result || selectedEvent.analysis?.result) && (
+                <div className="answer-box priority">
+                  <h4>AI 结果（自动）</h4>
+                  <pre className="answer-content">{result || selectedEvent.analysis?.result}</pre>
+                </div>
+              )}
+
               <p className="muted">
                 类型：<strong>{selectedEvent.detectedType || 'unknown'}</strong>
               </p>
-              <pre>{JSON.stringify(selectedEvent.payload, null, 2)}</pre>
+
+              <details>
+                <summary>事件详情（折叠）</summary>
+                <pre>{JSON.stringify(selectedEvent.payload, null, 2)}</pre>
+              </details>
 
               {selectedEvent.markdown && (
                 <details>
@@ -231,13 +242,6 @@ export default function HomePage() {
               <h3>分析输入（自动触发）</h3>
               <textarea rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} />
               {loading && <p className="muted">AI 正在自动分析最新事件...</p>}
-
-              {(result || selectedEvent.analysis?.result) && (
-                <div className="answer-box">
-                  <h4>AI 结果（自动）</h4>
-                  <pre className="answer-content">{result || selectedEvent.analysis?.result}</pre>
-                </div>
-              )}
             </>
           ) : (
             <p className="muted">请选择一条事件。</p>

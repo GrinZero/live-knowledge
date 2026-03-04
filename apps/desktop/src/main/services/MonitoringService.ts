@@ -16,6 +16,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import { EventEmitter } from 'events'
+import { spawn } from 'child_process'
 
 import { PluginManager } from './PluginManager'
 
@@ -37,6 +38,52 @@ export class MonitoringService extends EventEmitter {
   private contextWindowStartedAt: number = 0
   private contextFrames: Array<{ screenshotPath: string; text: string; tags: Tag[] }> = []
   private lastContextHash: string | null = null
+
+  private async normalizeScreenshotsWithMarkItDown(paths: string[]): Promise<string[]> {
+    if (process.env.MARKITDOWN_AUTO_CONVERT !== 'true') {
+      return []
+    }
+
+    const outputs: string[] = []
+    for (const screenshotPath of paths.slice(0, 3)) {
+      // best-effort conversion, never blocks main flow
+      const markdown = await new Promise<string | null>((resolve) => {
+        const child = spawn('python', ['-m', 'markitdown', screenshotPath], {
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+
+        let stdout = ''
+        let stderr = ''
+
+        child.stdout.on('data', (chunk) => {
+          stdout += chunk.toString()
+        })
+
+        child.stderr.on('data', (chunk) => {
+          stderr += chunk.toString()
+        })
+
+        child.on('close', (code) => {
+          if (code === 0 && stdout.trim().length > 0) {
+            resolve(stdout.trim())
+          } else {
+            if (stderr.trim()) {
+              console.warn('[MonitoringService] markitdown skipped:', stderr)
+            }
+            resolve(null)
+          }
+        })
+
+        child.on('error', () => resolve(null))
+      })
+
+      if (markdown) {
+        outputs.push(markdown)
+      }
+    }
+
+    return outputs
+  }
 
   constructor(
     screenWatcher: ScreenWatcher,
@@ -262,6 +309,7 @@ export class MonitoringService extends EventEmitter {
         tags = aggregated.tags
       }
       const screenshotPaths = frames.map((f) => f.screenshotPath)
+      const normalizedMarkdown = await this.normalizeScreenshotsWithMarkItDown(screenshotPaths)
 
       if (!extractedText.trim()) {
         console.log('No text found in screenshot')
@@ -287,7 +335,8 @@ export class MonitoringService extends EventEmitter {
       await this.pluginManager.triggerEvent('knowledge_created', {
         item: knowledgeItem,
         tags,
-        screenshotPaths
+        screenshotPaths,
+        normalizedMarkdown
       })
 
       // Generate insights using AI
@@ -345,7 +394,8 @@ export class MonitoringService extends EventEmitter {
         // Trigger plugin event
         await this.pluginManager.triggerEvent('insight_generated', {
           insight: { ...insight, screenshotPath: primaryScreenshot },
-          knowledgeItem
+          knowledgeItem,
+          normalizedMarkdown
         })
 
         // Present the insight using presentation service

@@ -252,6 +252,8 @@ pnpm --filter @live-knowledge/web-demo dev
 - `maxAttachmentCount`（限制单次上传附件数量）
 - `enableTypeDetection` + `allowedContentTypes`（先识别事件类型再决定是否发送）
 - `resourceMode: "markdown"`（输出统一 markdown 载荷，便于消费者侧处理）
+- `customEvents` + `eventMatchMode`（可配置插件事件名 / 自定义事件名，支持精确或前缀匹配）
+- `markitdownEnabled`（在 Electron webhook 插件侧直接转换截图为 markdown）
 
 Web Demo 接口：
 
@@ -346,3 +348,8 @@ MARKITDOWN_AUTO_CONVERT=true
 ```bash
 python -m pip install markitdown
 ```
+
+> 说明：
+>
+> - Electron 主程序也支持 `MARKITDOWN_AUTO_CONVERT=true`，会在监控流程中把截图转换成 markdown，并随事件传递给插件。
+> - `webhook-plugin` 若开启 `markitdownEnabled`，会在发送 webhook 前再次尝试转换首张截图（双保险）。
