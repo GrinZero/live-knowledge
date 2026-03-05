@@ -17,15 +17,15 @@ body {
 .container {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 34px 24px 56px;
+  padding: 20px 18px 28px;
 }
 
 .hero {
   background: #ffffff;
   border: 1px solid #e5e5ea;
   border-radius: 24px;
-  padding: 24px;
-  margin-bottom: 18px;
+  padding: 16px;
+  margin-bottom: 12px;
 }
 
 .hero.collapsed {
@@ -57,13 +57,13 @@ body {
 
 .hero h1 {
   margin: 8px 0 0;
-  font-size: 40px;
+  font-size: 30px;
   font-weight: 620;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: #424245;
 }
 
@@ -71,14 +71,14 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 8px;
   color: #6e6e73;
   font-size: 13px;
 }
 
 .grid {
   display: grid;
-  gap: 16px;
+  gap: 10px;
   grid-template-columns: 320px 1fr;
 }
 
@@ -89,8 +89,8 @@ body {
 .panel {
   background: #ffffff;
   border: 1px solid #e5e5ea;
-  border-radius: 20px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 12px;
 }
 
 .panel-stream,
@@ -220,9 +220,11 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
   background: #fbfbfd;
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 8px;
   border: 1px solid #e5e5ea;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .attachments-grid {
@@ -262,9 +264,32 @@ pre {
 }
 
 .answer-content {
-  font-size: 20px;
-  line-height: 1.7;
-  min-height: 200px;
+  font-size: 13px;
+  line-height: 1.35;
+  min-height: 120px;
+}
+
+.markdown-body p,
+.markdown-body li,
+.markdown-body blockquote,
+.markdown-body code {
+  margin: 0.2em 0;
+  line-height: 1.35;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.1em;
+  margin: 0.25em 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 0.35em 0;
+  line-height: 1.25;
+  font-size: 1.05em;
 }
 
 .muted {

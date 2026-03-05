@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 type EventRecord = {
   id: string
@@ -210,7 +212,11 @@ export default function HomePage() {
               {(result || selectedEvent.analysis?.result) && (
                 <div className="answer-box priority">
                   <h4>AI 结果（自动）</h4>
-                  <pre className="answer-content">{result || selectedEvent.analysis?.result}</pre>
+                  <div className="answer-content markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result || selectedEvent.analysis?.result || ''}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               )}
 
