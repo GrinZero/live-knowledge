@@ -225,3 +225,131 @@ Live Knowledge 设计为高度可扩展。插件可以：
 ## 📄 许可证
 
 MIT
+
+## Web Demo (Next.js)
+
+新增 `apps/web-demo` 作为独立可部署的 webhook 分析面板，可运行在与 Electron 不同的宿主机。
+
+### 目标
+
+- 接收 webhook-plugin 推送的数据。
+- 在本地磁盘保存截图附件（无 CDN 场景）。
+- 支持二次 AI 分析并展示结果。
+
+### 启动
+
+```bash
+pnpm --filter @live-knowledge/web-demo dev
+```
+
+默认端口 `3010`。
+
+### Webhook 对接建议
+
+在 `webhook-plugin` 中给目标 webhook 增加：
+
+- `transferMode: "multipart"`（发送事件 JSON + 截图文件）
+- `maxAttachmentCount`（限制单次上传附件数量）
+- `enableTypeDetection` + `allowedContentTypes`（先识别事件类型再决定是否发送）
+- `resourceMode: "markdown"`（输出统一 markdown 载荷，便于消费者侧处理）
+- `customEvents` + `eventMatchMode`（可配置插件事件名 / 自定义事件名，支持精确或前缀匹配）
+- `markitdownEnabled`（在 Electron webhook 插件侧直接转换截图为 markdown）
+
+Web Demo 接口：
+
+- `POST /api/webhook`：支持 `application/json` 和 `multipart/form-data`
+- `GET /api/events`：查看已落盘事件
+- `POST /api/analyze`：对指定事件执行 AI 分析
+
+### AI 配置
+
+Web Demo 读取以下环境变量：
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+
+### 本地联调（Desktop + Web Demo）
+
+> 目标：在本机同时跑 Electron 主程序和 `web-demo`，让 `webhook-plugin` 把截图直传到 `web-demo` 并在网页上查看分析。
+
+1. 安装依赖（仓库根目录）
+
+```bash
+pnpm install
+```
+
+2. 启动 Web Demo（终端 A）
+
+```bash
+pnpm --filter @live-knowledge/web-demo dev
+```
+
+- 默认地址：`http://127.0.0.1:3010`
+- 事件接口：`GET http://127.0.0.1:3010/api/events`
+
+3. 启动桌面主程序（终端 B）
+
+```bash
+pnpm --filter live-knowledge-app dev
+```
+
+4. 在桌面端插件设置里配置 webhook-plugin
+
+建议配置：
+
+```json
+{
+  "webhooks": [
+    {
+      "url": "http://127.0.0.1:3010/api/webhook",
+      "transferMode": "multipart",
+      "maxAttachmentCount": 3,
+      "events": ["insight_generated", "knowledge_created"],
+      "headers": {
+        "x-source": "live-knowledge-desktop"
+      }
+    }
+  ]
+}
+```
+
+5. 在桌面端触发一次监控/洞察后，验证链路
+
+- Web Demo 页面查看事件与截图：`http://127.0.0.1:3010`
+- 或直接请求事件 API：
+
+```bash
+curl http://127.0.0.1:3010/api/events
+```
+
+6. 在 Web Demo 配置 AI（可选）
+
+在 `apps/web-demo/.env.local` 中设置：
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+
+未配置时，`/api/analyze` 会返回本地回退提示。
+
+可选开启 MarkItDown 自动转换：
+
+```env
+MARKITDOWN_AUTO_CONVERT=true
+```
+
+并在运行环境安装：
+
+```bash
+python -m pip install markitdown
+```
+
+> 说明：
+>
+> - Electron 主程序也支持 `MARKITDOWN_AUTO_CONVERT=true`，会在监控流程中把截图转换成 markdown，并随事件传递给插件。
+> - `webhook-plugin` 若开启 `markitdownEnabled`，会在发送 webhook 前再次尝试转换首张截图（双保险）。
