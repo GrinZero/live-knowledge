@@ -6,6 +6,17 @@ import { analyzeWithAI } from '@/lib/ai'
 import { convertWithMarkItDown } from '@/lib/markitdown'
 import type { DetectedType } from '@/lib/store'
 import { saveEvent, updateEventAnalysis } from '@/lib/store'
+import {
+  DEFAULT_EVENT_TYPES,
+  normalizeEventType,
+  resolveEventDomain,
+  type EventTypeDefinition,
+} from '@/lib/event-types'
+import {
+  normalizeMultimodal,
+  requiresStructuredContent,
+  type MultimodalResource,
+} from '@/lib/multimodal'
 
 const duplicateWindowMs = 8000
 const recentSignatureMap = new Map<string, number>()
@@ -28,7 +39,7 @@ async function saveIncomingFiles(files: File[], eventId: string): Promise<string
 }
 
 function buildSignature(input: { event: string; payload: Record<string, unknown> }): string {
-  return createHash('sha1').update(`${input.event}:${JSON.stringify(input.payload)}`).digest('hex')
+  return createHash('sha1').update(`${normalizeEventType(input.event)}:${JSON.stringify(input.payload)}`).digest('hex')
 }
 
 function isDuplicate(signature: string): boolean {
@@ -51,11 +62,14 @@ export async function POST(req: NextRequest) {
   const id = randomUUID()
   const createdAt = new Date().toISOString()
 
-  let event = 'unknown_event'
+  let event = 'unknown.event'
+  let eventSource = 'unknown'
+  let eventTypeCatalog: EventTypeDefinition[] = [...DEFAULT_EVENT_TYPES]
   let payload: Record<string, unknown> = {}
   let attachments: string[] = []
   let detectedType: DetectedType = 'unknown'
   let markdown: string | undefined
+  let multimodal: MultimodalResource | null = null
 
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData()
@@ -72,6 +86,27 @@ export async function POST(req: NextRequest) {
     const markdownValue = form.get('markdown')
     markdown = typeof markdownValue === 'string' ? markdownValue : undefined
 
+    const multimodalValue = form.get('multimodal')
+    if (typeof multimodalValue === 'string' && multimodalValue.trim()) {
+      try {
+        multimodal = normalizeMultimodal(JSON.parse(multimodalValue) as Partial<MultimodalResource>)
+      } catch {
+        multimodal = null
+      }
+    }
+
+    const eventSourceValue = form.get('eventSource')
+    eventSource = typeof eventSourceValue === 'string' ? eventSourceValue : eventSource
+
+    const eventTypeCatalogValue = form.get('eventTypeCatalog')
+    if (typeof eventTypeCatalogValue === 'string' && eventTypeCatalogValue.trim()) {
+      try {
+        eventTypeCatalog = JSON.parse(eventTypeCatalogValue) as EventTypeDefinition[]
+      } catch {
+        eventTypeCatalog = [...DEFAULT_EVENT_TYPES]
+      }
+    }
+
     const files = form.getAll('files').filter((item): item is File => item instanceof File)
     attachments = await saveIncomingFiles(files, id)
   } else {
@@ -81,12 +116,18 @@ export async function POST(req: NextRequest) {
       payloadBase64Images?: string[]
       detectedType?: DetectedType
       markdown?: string
+      eventSource?: string
+      eventTypeCatalog?: EventTypeDefinition[]
+      multimodal?: Partial<MultimodalResource>
     }
 
     event = body.event || event
     payload = body.payload || {}
     detectedType = body.detectedType || detectedType
     markdown = body.markdown
+    eventSource = body.eventSource || eventSource
+    eventTypeCatalog = body.eventTypeCatalog || eventTypeCatalog
+    multimodal = normalizeMultimodal(body.multimodal)
 
     const maybeBase64Images = body.payloadBase64Images || []
     if (maybeBase64Images.length > 0) {
@@ -103,7 +144,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const signature = buildSignature({ event, payload })
+
+  if (!multimodal) {
+    const fallbackMode = markdown ? 'markitdown' : attachments.length > 0 ? 'local_file' : 'raw'
+    multimodal = normalizeMultimodal({
+      mode: fallbackMode,
+      raw: payload,
+      markdown,
+      localFiles: attachments,
+    })
+  }
+
+  if (!requiresStructuredContent(multimodal)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          'web-demo requires multimodal.raw or multimodal.markdown. local_file only is not enough for remote analysis.',
+      },
+      { status: 400 },
+    )
+  }
+
+  payload = multimodal?.raw || payload
+  markdown = multimodal?.markdown || markdown
+
+  const normalizedEventType = normalizeEventType(event)
+  const eventDomain = resolveEventDomain(normalizedEventType, eventTypeCatalog)
+
+  const signature = buildSignature({ event: normalizedEventType, payload })
   if (isDuplicate(signature)) {
     return NextResponse.json({ success: true, ignored: true, reason: 'debounced_duplicate' })
   }
@@ -112,7 +181,19 @@ export async function POST(req: NextRequest) {
     markdown = (await convertWithMarkItDown(attachments[0])) || undefined
   }
 
-  await saveEvent({ id, event, payload, attachments, createdAt, detectedType, markdown })
+  await saveEvent({
+    id,
+    event: normalizedEventType,
+    eventDomain,
+    eventSource,
+    eventTypeCatalog,
+    payload,
+    attachments,
+    createdAt,
+    detectedType,
+    markdown,
+    multimodal: multimodal || undefined,
+  })
 
   if (detectedType === 'problem_solving') {
     queueMicrotask(async () => {

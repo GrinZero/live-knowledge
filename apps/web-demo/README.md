@@ -46,7 +46,7 @@ pnpm --filter live-knowledge-app dev
       "url": "http://127.0.0.1:3010/api/webhook",
       "transferMode": "multipart",
       "maxAttachmentCount": 3,
-      "events": ["insight_generated", "knowledge_created"]
+      "events": ["insight.generated", "knowledge.created"]
     }
   ]
 }
@@ -63,6 +63,17 @@ curl http://127.0.0.1:3010/api/events
 若返回事件列表且 `attachments` 有 `/uploads/<eventId>/...` 路径，说明截图直传与落盘成功。
 
 Web Demo 内置服务端防抖：同类 payload 在 8 秒窗口内重复推送会自动忽略，避免高频事件冲垮分析流程。
+
+
+## 多模态传输约定（重要）
+
+Webhook 建议统一携带 `multimodal` 字段：
+
+- `raw`：结构化 JSON，放在 `multimodal.raw`
+- `markitdown`：markdown 文本，放在 `multimodal.markdown`
+- `local_file`：仅本地路径（远端服务不可直接读取）
+
+> 对 web-demo 来说，必须至少提供 `raw` 或 `markitdown` 之一；仅 `local_file` 会被拒绝（HTTP 400）。
 
 ## 接口
 
