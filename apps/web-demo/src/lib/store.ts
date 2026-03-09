@@ -1,14 +1,20 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { EventDomain, EventTypeDefinition } from './event-types'
+import type { MultimodalResource } from './multimodal'
 
 export type DetectedType = 'problem_solving' | 'coding' | 'meeting' | 'document' | 'unknown'
 
 export interface WebhookEventRecord {
   id: string
   event: string
+  eventDomain?: EventDomain
+  eventSource?: string
+  eventTypeCatalog?: EventTypeDefinition[]
   createdAt: string
   payload: Record<string, unknown>
   attachments: string[]
+  multimodal?: MultimodalResource
   detectedType?: DetectedType
   markdown?: string
   analysis?: {
