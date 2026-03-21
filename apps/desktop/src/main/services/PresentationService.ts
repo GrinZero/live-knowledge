@@ -16,6 +16,7 @@ export interface PresentationConfig {
 export class PresentationService {
   private presentationWindow: BrowserWindow | null = null
   private currentMode: PresentationMode = 'notification'
+  private notificationsEnabled: boolean = true
   private config: PresentationConfig = {
     mode: 'notification',
     opacity: 0.9,
@@ -55,25 +56,27 @@ export class PresentationService {
   }
 
   async showInsight(insight: Insight, config?: PresentationConfig): Promise<void> {
-    const mergedConfig = { ...this.config, ...config }
+      if (!this.notificationsEnabled) return
 
-    switch (mergedConfig.mode) {
-      case 'overlay':
-        await this.showOverlay(insight, mergedConfig)
-        break
-      case 'sidebar':
-        await this.showSidebar(insight, mergedConfig)
-        break
-      case 'bubble':
-        await this.showBubble(insight, mergedConfig)
-        break
-      case 'notification':
-        await this.showNotification(insight, mergedConfig)
-        break
-      default:
-        await this.showNotification(insight, mergedConfig)
+      const mergedConfig = { ...this.config, ...config }
+
+      switch (mergedConfig.mode) {
+        case 'overlay':
+          await this.showOverlay(insight, mergedConfig)
+          break
+        case 'sidebar':
+          await this.showSidebar(insight, mergedConfig)
+          break
+        case 'bubble':
+          await this.showBubble(insight, mergedConfig)
+          break
+        case 'notification':
+          await this.showNotification(insight, mergedConfig)
+          break
+        default:
+          await this.showNotification(insight, mergedConfig)
+      }
     }
-  }
 
   private async showOverlay(insight: Insight, config: PresentationConfig): Promise<void> {
     if (this.presentationWindow && !this.presentationWindow.isDestroyed()) {
@@ -236,8 +239,16 @@ export class PresentationService {
   }
 
   getConfig(): PresentationConfig {
-    return this.config
-  }
+      return this.config
+    }
+
+    setNotificationsEnabled(enabled: boolean): void {
+      this.notificationsEnabled = enabled
+    }
+
+    getNotificationsEnabled(): boolean {
+      return this.notificationsEnabled
+    }
 
   destroy(): void {
     if (this.presentationWindow && !this.presentationWindow.isDestroyed()) {

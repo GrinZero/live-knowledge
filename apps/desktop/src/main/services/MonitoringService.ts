@@ -225,6 +225,11 @@ export class MonitoringService extends EventEmitter {
       try {
         await this.performScreenCheck(config)
       } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        if (msg.includes('Screen recording permission denied')) {
+          console.warn('Screen recording permission denied. Monitoring paused — grant permission and restart.')
+          return // Stop the loop instead of spamming logs
+        }
         console.error('Error during screen check:', error)
       } finally {
         const baseInterval =

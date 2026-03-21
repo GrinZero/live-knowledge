@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(osascript -e 'tell application \"System Events\" to get properties of application process \"WeChat\"' 2>&1 || echo \"WeChat not running\")",
+      "Bash(sdef /Applications/WeChat.app 2>&1)",
+      "Bash(defaults read:*)",
+      "Bash(ls -la /Applications/WeChat.app/Contents/Resources/*.lproj 2>/dev/null | head -10)",
+      "Bash(sqlite3 ~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_eudcq1qrb20721_01ca/db_storage/contact/contact.db \".tables\" 2>&1 | head -20)",
+      "Bash(sqlite3 \"$HOME/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/2.0b4.0.9/c45999f6fab8d17f8cfa1b038aa0d5ff/Contact/wccontact_new2.db\" \".tables\" 2>&1)",
+      "Bash(xxd \"$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_eudcq1qrb20721_01ca/db_storage/contact/contact.db\" | head -5)",
+      "Bash(cd /Users/bugyaluwang/project/wechat-harness/agent-harness && pip install -e . 2>&1)",
+      "Bash(cd /Users/bugyaluwang/project/wechat-harness/agent-harness && pip3 install -e . 2>&1)",
+      "Bash(cd /Users/bugyaluwang/project/wechat-harness/agent-harness && python3 -m venv .venv && source .venv/bin/activate && pip install -e . 2>&1)",
+      "Bash(source .venv/bin/activate && which cli-anything-wechat && cli-anything-wechat --version)",
+      "Bash(source .venv/bin/activate && pip install pytest 2>&1 | tail -1)",
+      "Bash(source .venv/bin/activate && cli-anything-wechat --json chat list)",
+      "Read(//Library/Frameworks/Python.framework/**)",
+      "Read(//usr/lib/python3/dist-packages/**)",
+      "Bash(python3 -c \"import sys; print\\(sys.executable, sys.version\\)\")",
+      "Bash(/usr/bin/python3 -c \"import sys; print\\(sys.executable, sys.version\\)\")"
+    ]
+  }
+}

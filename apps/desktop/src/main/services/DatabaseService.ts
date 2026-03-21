@@ -837,6 +837,43 @@ export class DatabaseService {
       )
     }
   }
+  // ── App Settings (notification toggle, etc.) ──
+
+  async getAppSettings(userId: string): Promise<{ notificationsEnabled: boolean }> {
+    const row = await this.get(
+      'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
+      [userId, 'app_settings']
+    )
+    if (!row) return { notificationsEnabled: true }
+    const r = row as Record<string, unknown>
+    const settings = JSON.parse(String(r.settings ?? '{}'))
+    return { notificationsEnabled: settings.notificationsEnabled !== false }
+  }
+
+  async saveAppSettings(
+    userId: string,
+    settings: { notificationsEnabled: boolean }
+  ): Promise<void> {
+    const row = await this.get(
+      'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
+      [userId, 'app_settings']
+    )
+    const now = new Date().toISOString()
+
+    if (row) {
+      const r = row as Record<string, unknown>
+      await this.run(
+        'UPDATE integration_configs SET settings = ?, updated_at = ? WHERE id = ?',
+        [JSON.stringify(settings), now, String(r.id)]
+      )
+    } else {
+      const id = uuidv4()
+      await this.run(
+        'INSERT INTO integration_configs (id, user_id, provider, credentials, settings, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, userId, 'app_settings', '{}', JSON.stringify(settings), true, now, now]
+      )
+    }
+  }
 
   // Plugin Config operations
   async savePluginConfig(pluginId: string, config: Record<string, unknown>): Promise<void> {

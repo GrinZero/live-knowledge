@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette } from 'lucide-react'
+import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette, BellOff, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '../lib/api-client'
 import { cn } from '@/lib/utils'
@@ -28,9 +28,11 @@ export default function Settings(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(false)
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
 
   useEffect(() => {
     loadAIConfig()
+    loadAppSettings()
   }, [])
 
   useEffect(() => {
@@ -121,6 +123,29 @@ export default function Settings(): React.JSX.Element {
       }
     } catch (error) {
       console.error('Failed to load AI config:', error)
+    }
+  }
+
+  const loadAppSettings = async () => {
+    try {
+      const settings = await apiClient.settings.getAppSettings()
+      if (settings) {
+        setNotificationsEnabled(settings.notificationsEnabled !== false)
+      }
+    } catch (error) {
+      console.error('Failed to load app settings:', error)
+    }
+  }
+
+  const handleToggleNotifications = async (enabled: boolean) => {
+    setNotificationsEnabled(enabled)
+    try {
+      await apiClient.settings.saveAppSettings({ notificationsEnabled: enabled })
+      toast.success(enabled ? '通知已开启' : '通知已关闭')
+    } catch (error) {
+      console.error('Failed to save notification setting:', error)
+      setNotificationsEnabled(!enabled)
+      toast.error('保存通知设置失败')
     }
   }
 
@@ -226,6 +251,44 @@ export default function Settings(): React.JSX.Element {
                       <input type="number" step="0.01" className={inputClass} placeholder="0.85" />
                       <p className={helperClass}>内容去重的相似度阈值</p>
                     </div>
+                  </div>
+                </div>
+
+                {/* 通知开关 */}
+                <div className="border-t border-gray-100 pt-6">
+                  <h2 className="text-base font-medium text-gray-900 mb-4">通知</h2>
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {notificationsEnabled ? (
+                        <Bell className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <BellOff className="h-5 w-5 text-gray-400" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">系统通知</p>
+                        <p className="text-xs text-gray-500">
+                          {notificationsEnabled
+                            ? '洞察生成时会推送系统通知'
+                            : '已关闭所有系统通知'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleNotifications(!notificationsEnabled)}
+                      role="switch"
+                      aria-checked={notificationsEnabled}
+                      className={cn(
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20',
+                        notificationsEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                          notificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                        )}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>

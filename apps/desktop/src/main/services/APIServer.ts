@@ -419,6 +419,40 @@ export class APIServer {
         }
       }
     )
+
+    this.app.get(
+      '/api/settings/app',
+      async (_req: express.Request, res: express.Response) => {
+        try {
+          const settings = await this.databaseService.getAppSettings('default_user')
+          res.json(settings)
+        } catch (error) {
+          res
+            .status(500)
+            .json({ error: 'Failed to get app settings', message: (error as Error).message })
+        }
+      }
+    )
+
+    this.app.post(
+      '/api/settings/app',
+      async (req: express.Request, res: express.Response) => {
+        try {
+          const settings = req.body
+          await this.databaseService.saveAppSettings('default_user', settings)
+
+          // Sync to running PresentationService
+          if (this.presentationService) {
+            this.presentationService.setNotificationsEnabled(settings.notificationsEnabled !== false)
+          }
+          res.json({ success: true })
+        } catch (error) {
+          res
+            .status(400)
+            .json({ error: 'Failed to save app settings', message: (error as Error).message })
+        }
+      }
+    )
   }
 
   private setupPluginRoutes(): void {

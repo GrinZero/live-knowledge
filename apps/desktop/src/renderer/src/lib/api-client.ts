@@ -24,6 +24,20 @@ export const apiClient = {
       })
       if (!res.ok) throw new Error('Failed to fetch models')
       return res.json()
+    },
+    getAppSettings: async () => {
+      const res = await fetch(`${BASE_URL}/settings/app`)
+      if (!res.ok) throw new Error('Failed to fetch app settings')
+      return res.json()
+    },
+    saveAppSettings: async (settings: { notificationsEnabled: boolean }) => {
+      const res = await fetch(`${BASE_URL}/settings/app`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      })
+      if (!res.ok) throw new Error('Failed to save app settings')
+      return res.json()
     }
   },
   monitoring: {

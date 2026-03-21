@@ -92,19 +92,6 @@ function createTray(): void {
   }
   refreshTrayMenu = updateTrayMenu
 
-  tray.on('click', () => {
-    if (!mainWindow) return
-
-    if (mainWindow.isVisible()) {
-      mainWindow.hide()
-    } else {
-      mainWindow.show()
-      mainWindow.focus()
-    }
-
-    updateTrayMenu()
-  })
-
   updateTrayMenu()
 }
 
@@ -132,10 +119,18 @@ function createWindow(): BrowserWindow {
     if (tray) {
       tray.setToolTip('Live Knowledge')
     }
+    // macOS: 窗口显示时恢复 Dock 图标
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.show()
+    }
     refreshTrayMenu?.()
   })
 
   mainWindow.on('hide', () => {
+    // macOS: 窗口隐藏到托盘时隐藏 Dock 图标
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.hide()
+    }
     refreshTrayMenu?.()
   })
 
@@ -214,6 +209,15 @@ async function initializeServices(): Promise<void> {
 
     // Initialize presentation service
     presentationService = new PresentationService()
+
+    // 从数据库加载通知设置并同步
+    try {
+      const appSettings = await databaseService.getAppSettings('default_user')
+      presentationService.setNotificationsEnabled(appSettings.notificationsEnabled)
+    } catch (e) {
+      console.error('Failed to load app settings:', e)
+    }
+
     console.log('Presentation service initialized')
 
     // Initialize plugin manager

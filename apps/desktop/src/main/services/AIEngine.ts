@@ -273,8 +273,9 @@ export class AIEngine {
         // @ts-ignore: Patching global fetch to support proxy agent
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         global.fetch = async (url: any, init: any) => {
+          // 必须用 originalFetch 避免递归调用自身
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return fetch(url, { ...init, agent }) as any
+          return originalFetch(url, { ...init, agent }) as any
         }
       } else {
         this.httpAgent = undefined
