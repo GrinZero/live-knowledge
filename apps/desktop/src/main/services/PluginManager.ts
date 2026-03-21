@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { LiveKnowledgePlugin, PluginContext } from '../types/plugin'
+import { LiveKnowledgePlugin, PluginContext } from '../../../../../packages/plugin-sdk/src'
 import { Action } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
 import { DatabaseService } from './DatabaseService'
@@ -10,6 +10,36 @@ import * as fs from 'fs'
 // @ts-ignore: adm-zip types issue
 import AdmZip from 'adm-zip'
 import * as tar from 'tar'
+
+
+type EventDomain = 'knowledge' | 'information' | 'system'
+
+interface EventTypeDefinition {
+  type: string
+  domain: EventDomain
+  description: string
+}
+
+interface EventEnvelope {
+  type: string
+  domain: EventDomain
+  payload: Readonly<Record<string, unknown>>
+  emittedAt: string
+  source: string
+}
+
+const CORE_EVENT_TYPES: EventTypeDefinition[] = [
+  {
+    type: 'knowledge.created',
+    domain: 'knowledge',
+    description: 'A new knowledge item is persisted by the monitoring pipeline.'
+  },
+  {
+    type: 'insight.generated',
+    domain: 'information',
+    description: 'A new insight is generated from monitored context.'
+  }
+]
 
 export class PluginManager extends EventEmitter {
   private plugins: Map<string, LiveKnowledgePlugin> = new Map()
@@ -24,6 +54,7 @@ export class PluginManager extends EventEmitter {
   private pluginPaths: Map<string, string> = new Map()
   // Track renderer entry points for plugins
   private rendererEntries: Map<string, string> = new Map()
+  private eventTypeRegistry: Map<string, EventTypeDefinition> = new Map()
 
   constructor(aiEngine: AIEngine, databaseService: DatabaseService) {
     super()
@@ -33,6 +64,8 @@ export class PluginManager extends EventEmitter {
     if (!fs.existsSync(this.pluginsDir)) {
       fs.mkdirSync(this.pluginsDir, { recursive: true })
     }
+
+    this.registerEventTypes(CORE_EVENT_TYPES)
   }
 
   public async initialize(): Promise<void> {
@@ -364,12 +397,19 @@ export class PluginManager extends EventEmitter {
             this.aiEngine.generateCompletionStream(prompt, images)
         },
         ipc: {
-          handle: (channel, listener) => ipcMain.handle(channel, listener)
+          handle: (channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown) => ipcMain.handle(channel, listener)
         },
         http: {
           router: router
         },
-        database: this.databaseService
+        database: this.databaseService,
+        events: {
+          registerTypes: (definitions: EventTypeDefinition[]) => this.registerEventTypes(definitions),
+          getTypes: () => this.getEventTypes(),
+          emit: async (type: string, payload: Record<string, unknown>) => {
+            await this.triggerEvent(type, payload, plugin.id)
+          }
+        }
       }
       try {
         plugin.initialize(context)
@@ -450,6 +490,53 @@ export class PluginManager extends EventEmitter {
       }))
   }
 
+  private normalizeEventTypeDefinition(definition: EventTypeDefinition): EventTypeDefinition | null {
+    const type = (definition.type || '').trim()
+    const description = (definition.description || '').trim()
+
+    if (!type || !description) {
+      console.warn('[PluginManager] Skip invalid event type definition:', definition)
+      return null
+    }
+
+    const normalizedDomain = definition.domain
+    if (!normalizedDomain) {
+      return null
+    }
+
+    return {
+      type,
+      domain: normalizedDomain as EventDomain,
+      description
+    }
+  }
+
+  private registerEventTypes(definitions: EventTypeDefinition[]): void {
+    for (const definition of definitions) {
+      const normalized = this.normalizeEventTypeDefinition(definition)
+      if (!normalized) continue
+
+      const existing = this.eventTypeRegistry.get(normalized.type)
+      if (existing) {
+        if (
+          existing.domain !== normalized.domain ||
+          existing.description !== normalized.description
+        ) {
+          console.warn(
+            `[PluginManager] Event type ${normalized.type} already registered with different metadata. Keep first definition.`
+          )
+        }
+        continue
+      }
+
+      this.eventTypeRegistry.set(normalized.type, normalized)
+    }
+  }
+
+  private getEventTypes(): EventTypeDefinition[] {
+    return Array.from(this.eventTypeRegistry.values()).sort((a, b) => a.type.localeCompare(b.type))
+  }
+
   // Hook Execution Methods
 
   public async getContexts(): Promise<Record<string, unknown>> {
@@ -516,13 +603,37 @@ export class PluginManager extends EventEmitter {
     return handled
   }
 
-  public async triggerEvent(event: string, payload: Record<string, unknown>): Promise<void> {
+  public async triggerEvent(
+    event: string,
+    payload: Record<string, unknown>,
+    source = 'core.pipeline'
+  ): Promise<void> {
+    const definition = this.eventTypeRegistry.get(event)
+
+    if (!definition) {
+      console.warn(`[PluginManager] Skip unregistered event type: ${event}`)
+      return
+    }
+
+    const envelope: EventEnvelope = {
+      type: definition.type,
+      domain: definition.domain,
+      payload: Object.freeze({ ...payload }),
+      emittedAt: new Date().toISOString(),
+      source
+    }
+
+    const context = {
+      envelope,
+      eventTypes: this.getEventTypes()
+    }
+
     for (const plugin of this.plugins.values()) {
       if (!this.enabledPlugins.has(plugin.id)) continue
 
       if (plugin.hooks?.onEvent) {
         try {
-          await plugin.hooks.onEvent(event, payload)
+          await plugin.hooks.onEvent(envelope.type, envelope.payload, context)
         } catch (error) {
           console.error(`Error in onEvent hook for plugin ${plugin.id}:`, error)
         }
@@ -530,3 +641,4 @@ export class PluginManager extends EventEmitter {
     }
   }
 }
+

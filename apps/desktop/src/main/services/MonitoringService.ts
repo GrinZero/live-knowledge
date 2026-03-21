@@ -337,7 +337,7 @@ export class MonitoringService extends EventEmitter {
       const knowledgeItem = await this.createKnowledgeItem(tags, extractedText, screenshotPaths)
 
       // Trigger event
-      await this.pluginManager.triggerEvent('knowledge_created', {
+      await this.pluginManager.triggerEvent('knowledge.created', {
         item: knowledgeItem,
         tags,
         screenshotPaths,
@@ -397,7 +397,7 @@ export class MonitoringService extends EventEmitter {
         this.emit('insightGenerated', { ...insight, screenshotPath: primaryScreenshot })
 
         // Trigger plugin event
-        await this.pluginManager.triggerEvent('insight_generated', {
+        await this.pluginManager.triggerEvent('insight.generated', {
           insight: { ...insight, screenshotPath: primaryScreenshot },
           knowledgeItem,
           normalizedMarkdown

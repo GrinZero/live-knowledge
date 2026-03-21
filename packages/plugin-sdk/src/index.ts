@@ -61,6 +61,40 @@ export interface Screenshot {
   capturedAt: string;
 }
 
+export type EventDomain = "knowledge" | "information" | "system";
+
+export interface EventTypeDefinition {
+  type: string;
+  domain: EventDomain;
+  description: string;
+}
+
+export interface EventEnvelope {
+  type: string;
+  domain: EventDomain;
+  payload: Readonly<Record<string, unknown>>;
+  emittedAt: string;
+  source: string;
+}
+
+export interface EventDispatchContext {
+  envelope: EventEnvelope;
+  eventTypes: EventTypeDefinition[];
+}
+
+export const CORE_EVENT_TYPES: readonly EventTypeDefinition[] = [
+  {
+    type: "knowledge.created",
+    domain: "knowledge",
+    description: "A new knowledge item is persisted by the monitoring pipeline.",
+  },
+  {
+    type: "insight.generated",
+    domain: "information",
+    description: "A new insight is generated from monitored context.",
+  },
+] as const;
+
 // --- Service Interfaces ---
 
 export interface PluginDatabaseService {
@@ -97,6 +131,11 @@ export interface PluginContext {
     router: Router;
   };
   database: PluginDatabaseService;
+  events: {
+    registerTypes: (definitions: EventTypeDefinition[]) => void;
+    getTypes: () => EventTypeDefinition[];
+    emit: (type: string, payload: Record<string, unknown>) => Promise<void>;
+  };
 }
 
 export interface LiveKnowledgePlugin {
@@ -130,6 +169,7 @@ export interface LiveKnowledgePlugin {
     onEvent?: (
       event: string,
       payload: Record<string, unknown>,
+      context?: EventDispatchContext,
     ) => Promise<void>;
   };
 }

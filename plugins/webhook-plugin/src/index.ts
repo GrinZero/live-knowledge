@@ -1,4 +1,9 @@
-import { LiveKnowledgePlugin, PluginContext } from "@live-knowledge/plugin-sdk";
+import {
+  EventDispatchContext,
+  EventTypeDefinition,
+  LiveKnowledgePlugin,
+  PluginContext,
+} from "@live-knowledge/plugin-sdk";
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -12,7 +17,8 @@ type ContentType =
   | "meeting"
   | "document"
   | "unknown";
-type ResourceMode = "raw" | "markdown";
+type ResourceMode = "raw" | "markdown" | "local_file";
+type MultimodalMode = "raw" | "markitdown" | "local_file";
 type EventMatchMode = "exact" | "prefix";
 
 interface WebhookConfig {
@@ -29,18 +35,39 @@ interface WebhookConfig {
   markitdownEnabled?: boolean;
 }
 
+interface MultimodalResource {
+  mode: MultimodalMode;
+  raw?: Record<string, unknown>;
+  markdown?: string;
+  localFiles?: string[];
+}
+
 interface EnvelopePayload {
   event: string;
   timestamp: string;
   payload: Record<string, unknown>;
   detectedType: ContentType;
   markdown?: string;
+  multimodal: MultimodalResource;
+  eventDomain?: string;
+  eventSource?: string;
+  eventTypeCatalog?: EventTypeDefinition[];
 }
+
+const LEGACY_EVENT_ALIASES: Record<string, string> = {
+  insight_generated: "insight.generated",
+  knowledge_created: "knowledge.created",
+};
+
+function normalizeEventName(event: string): string {
+  return LEGACY_EVENT_ALIASES[event] || event;
+}
+
 
 export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
-  version = "1.3.0";
+  version = "1.5.0";
   description =
     "Triggers external webhooks when knowledge or insights are generated.";
 
@@ -72,7 +99,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
               type: "array",
               title: "触发事件",
               description:
-                "监听的事件类型（支持任意字符串；留空则监听所有），可填写 insight_generated、knowledge_created 或其它插件事件。",
+                "监听的事件类型（支持任意字符串；留空则监听所有），可填写 insight.generated、knowledge.created 或其它已注册事件。",
               items: {
                 type: "string",
               },
@@ -101,8 +128,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
               type: "string",
               title: "资源模式",
               description:
-                "raw 发送结构化 payload；markdown 会额外附带 markdown 文本便于消费者统一处理。",
-              enum: ["raw", "markdown"],
+                "统一多模态资源输出：raw（结构化 JSON）、markdown（MarkItDown 文本）或 local_file（仅本地路径）。",
+              enum: ["raw", "markdown", "local_file"],
             },
             maxAttachmentCount: {
               type: "number",
@@ -153,7 +180,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
         headers: {
           "Content-Type": "application/json",
         },
-        events: ["insight_generated", "knowledge_created"],
+        events: ["insight.generated", "knowledge.created"],
         transferMode: "json",
         resourceMode: "raw",
         enableTypeDetection: false,
@@ -169,6 +196,18 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
   initialize(context: PluginContext) {
     this.context = context;
     console.log("[WebhookPlugin] Initialized", context);
+    context.events.registerTypes([
+      {
+        type: "webhook.delivered",
+        domain: "system",
+        description: "Webhook plugin delivered an outbound webhook request.",
+      },
+      {
+        type: "webhook.delivery_failed",
+        domain: "system",
+        description: "Webhook plugin failed to deliver an outbound webhook request.",
+      },
+    ]);
 
     context.http.router.get("/history", async (_req, res) => {
       try {
@@ -346,40 +385,91 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     });
   }
 
+  private async buildMultimodalResource(
+    event: string,
+    payload: Record<string, unknown>,
+    hook: WebhookConfig,
+    detectedType: ContentType,
+  ): Promise<MultimodalResource> {
+    const localFiles = this.collectScreenshotPaths(payload);
+    const resourceMode = hook.resourceMode || "raw";
+
+    let markdown: string | undefined;
+    if (resourceMode === "markdown") {
+      markdown = this.createMarkdown(event, payload, detectedType);
+    }
+
+    if (hook.markitdownEnabled && !markdown) {
+      const converted = await this.convertWithMarkItDown(localFiles[0]);
+      if (converted) {
+        markdown = converted;
+      }
+    }
+
+    if (resourceMode === "local_file") {
+      return {
+        mode: "local_file",
+        localFiles,
+      };
+    }
+
+    if (markdown) {
+      return {
+        mode: "markitdown",
+        raw: payload,
+        markdown,
+        localFiles,
+      };
+    }
+
+    return {
+      mode: "raw",
+      raw: payload,
+      localFiles,
+    };
+  }
+
   private shouldSendByEvent(hook: WebhookConfig, event: string): boolean {
+    const normalizedEvent = normalizeEventName(event);
     const eventRules = [
       ...(hook.events || []),
       ...(hook.customEvents || []),
-    ].filter(Boolean);
+    ]
+      .filter(Boolean)
+      .map((rule) => normalizeEventName(rule));
     if (eventRules.length === 0) return true;
 
     const mode = hook.eventMatchMode || "exact";
     if (mode === "prefix") {
-      return eventRules.some((rule) => event.startsWith(rule));
+      return eventRules.some((rule) => normalizedEvent.startsWith(rule));
     }
 
-    return eventRules.includes(event);
+    return eventRules.includes(normalizedEvent);
   }
 
-  private buildEnvelope(
+  private async buildEnvelope(
     event: string,
     payload: Record<string, unknown>,
     hook: WebhookConfig,
-  ): EnvelopePayload {
+    context?: EventDispatchContext,
+  ): Promise<EnvelopePayload> {
     const detectedType = hook.enableTypeDetection
       ? this.detectContentType(payload)
       : "unknown";
 
+    const multimodal = await this.buildMultimodalResource(event, payload, hook, detectedType);
+
     const envelope: EnvelopePayload = {
-      event,
+      event: normalizeEventName(event),
       timestamp: new Date().toISOString(),
       payload,
       detectedType,
+      markdown: multimodal.markdown,
+      multimodal,
+      eventDomain: context?.envelope.domain,
+      eventSource: context?.envelope.source,
+      eventTypeCatalog: context?.eventTypes,
     };
-
-    if (hook.resourceMode === "markdown") {
-      envelope.markdown = this.createMarkdown(event, payload, detectedType);
-    }
 
     return envelope;
   }
@@ -412,7 +502,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     envelope: EnvelopePayload,
   ): Promise<{ response: Response; uploadedFiles: string[] }> {
     const formData = new FormData();
-    const files = this.collectScreenshotPaths(envelope.payload);
+    const files = envelope.multimodal.localFiles || this.collectScreenshotPaths(envelope.payload);
     const maxAttachmentCount = Math.max(
       1,
       Math.min(hook.maxAttachmentCount ?? 3, MAX_ATTACHMENT_UPPER_BOUND),
@@ -423,6 +513,16 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     formData.append("timestamp", envelope.timestamp);
     formData.append("detectedType", envelope.detectedType);
     formData.append("payload", JSON.stringify(envelope.payload));
+    formData.append("multimodal", JSON.stringify(envelope.multimodal));
+    if (envelope.eventDomain) {
+      formData.append("eventDomain", envelope.eventDomain);
+    }
+    if (envelope.eventSource) {
+      formData.append("eventSource", envelope.eventSource);
+    }
+    if (envelope.eventTypeCatalog) {
+      formData.append("eventTypeCatalog", JSON.stringify(envelope.eventTypeCatalog));
+    }
     if (envelope.markdown) {
       formData.append("markdown", envelope.markdown);
     }
@@ -455,7 +555,11 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
   }
 
   hooks = {
-    onEvent: async (event: string, payload: Record<string, unknown>) => {
+    onEvent: async (
+      event: string,
+      payload: Record<string, unknown>,
+      dispatchContext?: EventDispatchContext,
+    ) => {
       console.log(`[WebhookPlugin] Received event: ${event}`);
 
       const webhooks =
@@ -474,16 +578,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
         if (!hook.url) continue;
 
-        const envelope = this.buildEnvelope(event, payload, hook);
-        if (hook.markitdownEnabled && !envelope.markdown) {
-          const screenshotCandidates = this.collectScreenshotPaths(payload);
-          const fromMarkitdown = await this.convertWithMarkItDown(
-            screenshotCandidates[0],
-          );
-          if (fromMarkitdown) {
-            envelope.markdown = fromMarkitdown;
-          }
-        }
+        const envelope = await this.buildEnvelope(event, payload, hook, dispatchContext);
         if (!this.shouldSendByType(hook, envelope.detectedType)) {
           console.log(
             `[WebhookPlugin] Skip webhook ${hook.url} because detected type is ${envelope.detectedType}`,
@@ -507,13 +602,20 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
           if (this.context) {
             try {
+              await this.context.events.emit("webhook.delivered", {
+                targetUrl: hook.url,
+                event: normalizeEventName(event),
+                status: response.status,
+                transferMode: hook.transferMode || "json",
+              });
+
               await this.context.database.createKnowledgeItem({
                 userId: "default_user",
                 type: "webhook_log",
-                title: `Webhook Trigger: ${event}`,
+                title: `Webhook Trigger: ${normalizeEventName(event)}`,
                 content: JSON.stringify({
                   url: hook.url,
-                  event,
+                  event: normalizeEventName(event),
                   status: response.status,
                   statusText: response.statusText,
                   transferMode: hook.transferMode || "json",
@@ -537,13 +639,19 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
           if (this.context) {
             try {
+              await this.context.events.emit("webhook.delivery_failed", {
+                targetUrl: hook.url,
+                event: normalizeEventName(event),
+                error: error instanceof Error ? error.message : String(error),
+              });
+
               await this.context.database.createKnowledgeItem({
                 userId: "default_user",
                 type: "webhook_log",
-                title: `Webhook Failed: ${event}`,
+                title: `Webhook Failed: ${normalizeEventName(event)}`,
                 content: JSON.stringify({
                   url: hook.url,
-                  event,
+                  event: normalizeEventName(event),
                   error: error instanceof Error ? error.message : String(error),
                 }),
                 metadata: { url: hook.url, error: true },
