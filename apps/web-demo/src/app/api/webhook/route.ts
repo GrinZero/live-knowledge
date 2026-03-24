@@ -192,13 +192,19 @@ export async function POST(req: NextRequest) {
     markdown = (await convertWithMarkItDown(attachments[0])) || undefined
   }
 
+  // Clean screenshotPath from payload before storing
+  const cleanPayload = JSON.parse(JSON.stringify(payload, (key, value) => {
+    if (key === 'screenshotPath') return undefined
+    return value
+  }))
+
   await saveEvent({
     id,
     event: normalizedEventType,
     eventDomain,
     eventSource,
     eventTypeCatalog,
-    payload,
+    payload: cleanPayload,
     attachments,
     createdAt,
     detectedType,
@@ -212,7 +218,7 @@ export async function POST(req: NextRequest) {
         const prompt = '请直接给出题目的解题思路、关键步骤和最终答案。'
         const result = await analyzeWithAI({
           userPrompt: prompt,
-          payload,
+          payload: cleanPayload,
           attachments,
           markdown,
           detectedType,
