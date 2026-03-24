@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette, BellOff, Bell } from 'lucide-react'
+import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette, BellOff, Bell, Activity } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '../lib/api-client'
 import { cn } from '@/lib/utils'
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const tabs = [
   { key: 'general', label: '通用设置', icon: Settings2 },
   { key: 'ai', label: 'AI 模型', icon: Bot },
+  { key: 'events', label: '事件类型', icon: Activity },
   { key: 'triggers', label: '触发规则', icon: Zap },
   { key: 'integrations', label: '系统集成', icon: Link2 },
   { key: 'personal', label: '个性化', icon: Palette }
@@ -29,10 +30,23 @@ export default function Settings(): React.JSX.Element {
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [quickCaptureShortcut, setQuickCaptureShortcut] = useState('CommandOrControl+Shift+S')
+  const [isCapturingShortcut, setIsCapturingShortcut] = useState(false)
+  const [eventTypes, setEventTypes] = useState<EventType[]>([])
+  const [eventFilter, setEventFilter] = useState<'all' | 'core' | 'plugin'>('all')
+
+  interface EventType {
+    type: string
+    domain: string
+    description: string
+    source: 'core' | 'plugin'
+  }
 
   useEffect(() => {
     loadAIConfig()
     loadAppSettings()
+    loadShortcut()
+    loadEventTypes()
   }, [])
 
   useEffect(() => {
@@ -146,6 +160,62 @@ export default function Settings(): React.JSX.Element {
       console.error('Failed to save notification setting:', error)
       setNotificationsEnabled(!enabled)
       toast.error('保存通知设置失败')
+    }
+  }
+
+  const loadShortcut = async () => {
+    try {
+      const result = await apiClient.settings.getShortcut()
+      if (result && result.shortcut) {
+        setQuickCaptureShortcut(result.shortcut)
+      }
+    } catch (error) {
+      console.error('Failed to load shortcut:', error)
+    }
+  }
+
+  const loadEventTypes = async () => {
+    try {
+      const result = await apiClient.events.getTypes()
+      if (result && result.types) {
+        setEventTypes(result.types)
+      }
+    } catch (error) {
+      console.error('Failed to load event types:', error)
+    }
+  }
+
+  const handleSaveShortcut = async () => {
+    try {
+      // Use IPC to save and re-register shortcut in one call
+      await window.api.shortcut.set(quickCaptureShortcut)
+      toast.success('快捷键已保存')
+    } catch (error) {
+      console.error('Failed to save shortcut:', error)
+      toast.error('保存快捷键失败')
+    }
+  }
+
+  const handleShortcutKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.preventDefault()
+
+    const keys: string[] = []
+
+    // Collect modifier keys
+    if (e.ctrlKey || e.metaKey) keys.push('CommandOrControl')
+    if (e.altKey) keys.push('Alt')
+    if (e.shiftKey) keys.push('Shift')
+
+    // Add the main key (if not a modifier alone)
+    const key = e.key
+    if (key !== 'Control' && key !== 'Meta' && key !== 'Alt' && key !== 'Shift') {
+      // Format key name consistently
+      const formattedKey = key.length === 1 ? key.toUpperCase() : key
+      keys.push(formattedKey)
+    }
+
+    if (keys.length > 0) {
+      setQuickCaptureShortcut(keys.join('+'))
     }
   }
 
@@ -461,15 +531,129 @@ export default function Settings(): React.JSX.Element {
               </div>
             )}
 
+            {active === 'events' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-base font-medium text-gray-900 mb-2">事件类型</h2>
+                  <p className="text-sm text-gray-500">系统中已注册的所有事件类型及其说明</p>
+                </div>
+
+                {/* Filter */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEventFilter('all')}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-lg transition-all',
+                      eventFilter === 'all' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    全部 ({eventTypes.length})
+                  </button>
+                  <button
+                    onClick={() => setEventFilter('core')}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-lg transition-all',
+                      eventFilter === 'core' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    核心事件 ({eventTypes.filter(t => t.source === 'core').length})
+                  </button>
+                  <button
+                    onClick={() => setEventFilter('plugin')}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-lg transition-all',
+                      eventFilter === 'plugin' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    插件事件 ({eventTypes.filter(t => t.source === 'plugin').length})
+                  </button>
+                </div>
+
+                {/* Event List */}
+                <div className="space-y-3">
+                  {eventTypes
+                    .filter(t => eventFilter === 'all' || t.source === eventFilter)
+                    .map((event) => (
+                      <div key={event.type} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3 mb-2">
+                          <code className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded">
+                            {event.type}
+                          </code>
+                          <span className={cn(
+                            'px-2 py-0.5 text-xs rounded',
+                            event.domain === 'knowledge' && 'bg-green-100 text-green-700',
+                            event.domain === 'information' && 'bg-purple-100 text-purple-700',
+                            event.domain === 'core' && 'bg-gray-200 text-gray-700',
+                            event.domain === 'system' && 'bg-red-100 text-red-700'
+                          )}>
+                            {event.domain}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {event.source === 'core' ? '核心' : '插件'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{event.description}</p>
+                      </div>
+                    ))}
+                </div>
+
+                {eventTypes.length === 0 && (
+                  <div className="py-12 text-center text-gray-400">
+                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">暂无事件类型</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {active === 'triggers' && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-base font-medium text-gray-900 mb-2">触发规则</h2>
-                  <p className="text-sm text-gray-500">配置屏幕捕获的触发条件和去抖策略</p>
+                  <h2 className="text-base font-medium text-gray-900 mb-2">快捷键设置</h2>
+                  <p className="text-sm text-gray-500">配置快速截图采集的全局快捷键</p>
                 </div>
-                <div className="py-12 text-center text-gray-400">
-                  <Zap className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p>即将推出</p>
+
+                {/* Quick Capture Shortcut */}
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Zap className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">快速截图快捷键</p>
+                      <p className="text-xs text-gray-500">按下快捷键立即采集当前屏幕</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      value={quickCaptureShortcut}
+                      onChange={(e) => setQuickCaptureShortcut(e.target.value)}
+                      onKeyDown={handleShortcutKeyDown}
+                      placeholder="点击此处按下快捷键组合"
+                      className={cn(
+                        'flex-1 h-10 px-3 bg-white border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all',
+                        isCapturingShortcut ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                      )}
+                    />
+                    <button
+                      onClick={handleSaveShortcut}
+                      className="flex items-center gap-2 h-10 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all"
+                    >
+                      <Save className="w-4 h-4" />
+                      保存
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    提示：按下快捷键组合（如 Cmd+Shift+S）来设置。修改后立即生效。
+                  </p>
+                </div>
+
+                {/* More trigger settings placeholder */}
+                <div className="border-t border-gray-100 pt-6">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">其他触发规则</h3>
+                  <div className="py-8 text-center text-gray-400">
+                    <Zap className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">更多触发规则配置即将推出</p>
+                  </div>
                 </div>
               </div>
             )}

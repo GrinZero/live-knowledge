@@ -19,6 +19,8 @@ import { EventEmitter } from 'events'
 import { spawn } from 'child_process'
 
 import { PluginManager } from './PluginManager'
+import { EventWorkflow } from './EventWorkflow'
+import { DEFAULT_WORKFLOW_CONFIG } from './EventWorkflow/types'
 
 export class MonitoringService extends EventEmitter {
   private screenWatcher: ScreenWatcher
@@ -38,6 +40,10 @@ export class MonitoringService extends EventEmitter {
   private contextWindowStartedAt: number = 0
   private contextFrames: Array<{ screenshotPath: string; text: string; tags: Tag[] }> = []
   private lastContextHash: string | null = null
+
+  // Event Workflow for smart deduplication
+  private eventWorkflow: EventWorkflow | null = null
+  private workflowEnabled: boolean = false
 
   private async normalizeScreenshotsWithMarkItDown(paths: string[]): Promise<string[]> {
     if (process.env.MARKITDOWN_AUTO_CONVERT !== 'true') {
@@ -158,6 +164,21 @@ export class MonitoringService extends EventEmitter {
       // Apply config to AI Engine
       this.aiEngine.updateConfig({ language: config.language ?? 'zh' })
 
+      // Initialize EventWorkflow if feature flag is enabled
+      this.workflowEnabled = DEFAULT_WORKFLOW_CONFIG.enabled
+      if (this.workflowEnabled) {
+        console.log('[MonitoringService] EventWorkflow enabled, initializing...')
+        this.eventWorkflow = new EventWorkflow(DEFAULT_WORKFLOW_CONFIG, {
+          screenWatcher: this.screenWatcher,
+          aiEngine: this.aiEngine,
+          contentAnalyzer: this.contentAnalyzer,
+          pluginManager: this.pluginManager,
+          screenshotDir: this.screenshotDir
+        })
+        await this.eventWorkflow.start()
+        console.log('[MonitoringService] EventWorkflow started')
+      }
+
       // Start monitoring loop
       this.startMonitoringLoop(config)
 
@@ -180,6 +201,13 @@ export class MonitoringService extends EventEmitter {
     }
 
     try {
+      // Stop EventWorkflow if running
+      if (this.eventWorkflow) {
+        await this.eventWorkflow.stop()
+        this.eventWorkflow = null
+        console.log('[MonitoringService] EventWorkflow stopped')
+      }
+
       // Stop monitoring loop
       if (this.monitoringInterval) {
         clearInterval(this.monitoringInterval)
@@ -242,6 +270,13 @@ export class MonitoringService extends EventEmitter {
   }
 
   private async performScreenCheck(config: MonitorConfig): Promise<void> {
+    // If EventWorkflow is enabled, delegate to it
+    if (this.workflowEnabled && this.eventWorkflow) {
+      // The EventWorkflow handles its own loop, so we just return here
+      // The workflow will emit events that MonitoringService can listen to if needed
+      return
+    }
+
     if (this.isContextCapturing) {
       await this.captureContextFrame(config)
       return
@@ -413,8 +448,9 @@ export class MonitoringService extends EventEmitter {
         }
       }
 
-      // Create trigger event
-      await this.createTriggerEvent('screen_context', {
+      // Create trigger event via pluginManager so it gets registered properly
+      await this.pluginManager.triggerEvent('screen_context', {
+        sessionId: this.currentSession!.id,
         tags,
         insights,
         screenshotPath: screenshotPaths,
@@ -435,6 +471,12 @@ export class MonitoringService extends EventEmitter {
     this.isContextCapturing = true
     this.contextWindowStartedAt = Date.now()
     this.contextFrames = []
+    // Trigger raw.created BEFORE any OCR/AI analysis
+    void this.pluginManager.triggerEvent('raw.created', {
+      sessionId: this.currentSession?.id,
+      screenshot: initialScreenshot,
+      timestamp: new Date().toISOString()
+    })
     // Push first frame
     void this.pushFrame(initialScreenshot)
     // End window will be decided by performScreenCheck calls
@@ -448,6 +490,14 @@ export class MonitoringService extends EventEmitter {
     // Capture additional frame unconditionally (no similarity gating)
     try {
       const frame = await this.screenWatcher.captureScreen()
+
+      // Trigger raw.created event BEFORE any OCR/AI analysis
+      await this.pluginManager.triggerEvent('raw.created', {
+        sessionId: this.currentSession?.id,
+        screenshot: frame,
+        timestamp: new Date().toISOString()
+      })
+
       await this.pushFrame(frame)
     } catch (error) {
       console.error('Failed to capture context frame:', error)
@@ -756,5 +806,51 @@ export class MonitoringService extends EventEmitter {
     await this.database.close()
 
     console.log('Monitoring service cleaned up')
+  }
+
+  /**
+   * Manually trigger a single screenshot capture and event processing.
+   * This is triggered by the global shortcut and bypasses the monitoring loop.
+   */
+  async triggerManualCapture(): Promise<void> {
+    console.log('[MonitoringService] Manual capture triggered via shortcut')
+    try {
+      // Ensure we have a session before saving screenshot (required by saveScreenshot)
+      if (!this.currentSession) {
+        const session: MonitoringSession = {
+          id: uuidv4(),
+          userId: this.userId,
+          startedAt: new Date().toISOString(),
+          status: 'active',
+          config: { mode: 'full', language: 'zh' },
+          createdAt: new Date().toISOString()
+        }
+        this.currentSession = session
+        await this.database.createMonitoringSession(session)
+      }
+
+      // Capture the current screen unconditionally
+      const screenshot = await this.screenWatcher.captureScreen()
+      const screenshotPath = await this.saveScreenshot(screenshot)
+
+      // Trigger raw.created event BEFORE any OCR/AI analysis
+      await this.pluginManager.triggerEvent('raw.created', {
+        sessionId: this.currentSession.id,
+        screenshotPath,
+        timestamp: new Date().toISOString()
+      })
+
+      const { text, tags } = await this.contentAnalyzer.analyzeImage(screenshot)
+
+      // Create a frame object for processing
+      const frame = { screenshotPath, text, tags }
+
+      // Process through the existing aggregation workflow
+      await this.processAggregatedContext([frame])
+      console.log('[MonitoringService] Manual capture processed successfully')
+    } catch (error) {
+      console.error('[MonitoringService] Manual capture failed:', error)
+      throw error
+    }
   }
 }

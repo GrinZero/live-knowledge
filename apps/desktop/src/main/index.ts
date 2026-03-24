@@ -1,3 +1,6 @@
+// 日志拦截器 - 必须在其他导入之前初始化
+import './utils/logInterceptor'
+
 import {
   app,
   shell,
@@ -8,7 +11,8 @@ import {
   dialog,
   Tray,
   Menu,
-  nativeImage
+  nativeImage,
+  globalShortcut
 } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -426,6 +430,60 @@ function setupIpcHandlers(): void {
   ipcMain.on('ping', () => console.log('pong'))
 }
 
+// Global shortcut management
+const DEFAULT_SHORTCUT = 'CommandOrControl+Shift+S'
+let currentShortcut: string = DEFAULT_SHORTCUT
+
+function registerQuickCaptureShortcut(shortcut: string): boolean {
+  // Unregister all first
+  globalShortcut.unregisterAll()
+
+  try {
+    const success = globalShortcut.register(shortcut, () => {
+      console.log('[Shortcut] Quick capture triggered')
+      if (monitoringService) {
+        monitoringService.triggerManualCapture().catch((err) => {
+          console.error('[Shortcut] Manual capture failed:', err)
+        })
+      }
+    })
+
+    if (success) {
+      currentShortcut = shortcut
+      console.log(`[Shortcut] Registered: ${shortcut}`)
+    } else {
+      console.warn(`[Shortcut] Failed to register: ${shortcut}`)
+    }
+    return success
+  } catch (error) {
+    console.error('[Shortcut] Registration error:', error)
+    return false
+  }
+}
+
+function setupShortcutHandlers(): void {
+  // IPC handler to get current shortcut
+  ipcMain.handle('shortcut:get', async () => {
+    return { shortcut: currentShortcut }
+  })
+
+  // IPC handler to update shortcut
+  ipcMain.handle('shortcut:set', async (_, newShortcut: string) => {
+    if (!newShortcut || newShortcut.trim() === '') {
+      throw new Error('Shortcut cannot be empty')
+    }
+
+    const success = registerQuickCaptureShortcut(newShortcut)
+    if (success) {
+      // Save to database
+      if (databaseService) {
+        await databaseService.saveAppSettings('default_user', { quickCaptureShortcut: newShortcut })
+      }
+    }
+    return { success }
+  })
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -480,7 +538,18 @@ app.whenReady().then(async () => {
   try {
     await initializeServices()
     setupIpcHandlers()
+    setupShortcutHandlers()
     console.log('All services initialized successfully')
+
+    // Load saved shortcut and register
+    try {
+      const appSettings = await databaseService!.getAppSettings('default_user')
+      const savedShortcut = appSettings.quickCaptureShortcut || DEFAULT_SHORTCUT
+      registerQuickCaptureShortcut(savedShortcut)
+    } catch (e) {
+      console.error('Failed to load shortcut settings:', e)
+      registerQuickCaptureShortcut(DEFAULT_SHORTCUT)
+    }
   } catch (error) {
     console.error('Failed to initialize application:', error)
     app.quit()
@@ -544,6 +613,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  // Cleanup global shortcuts
+  globalShortcut.unregisterAll()
 })
 
 // In this file you can include the rest of your app's specific main process

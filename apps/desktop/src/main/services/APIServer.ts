@@ -1,10 +1,21 @@
 import express from 'express'
 import cors from 'cors'
+import fs from 'fs'
 import { DatabaseService } from '../services/DatabaseService'
 import { MonitoringService } from '../services/MonitoringService'
 import { PresentationService } from '../services/PresentationService'
 import { PluginManager } from '../services/PluginManager'
 import { AIEngine } from '../services/AIEngine'
+
+// 本地 TriggerEvent 类型定义
+interface TriggerEvent {
+  id: string
+  sessionId: string
+  eventType: string
+  content: Record<string, unknown>
+  confidence: number
+  triggeredAt: string
+}
 
 export class APIServer {
   private app: express.Application
@@ -14,6 +25,8 @@ export class APIServer {
   private pluginManager: PluginManager
   private aiEngine: AIEngine
   private port: number
+  private sseClients: Map<string, { res: express.Response; lastEventId: string | null }> = new Map()
+  private ssePollInterval: NodeJS.Timeout | null = null
 
   constructor(
     databaseService: DatabaseService,
@@ -453,6 +466,40 @@ export class APIServer {
         }
       }
     )
+
+    // Shortcut settings routes
+    this.app.get(
+      '/api/settings/shortcut',
+      async (_req: express.Request, res: express.Response) => {
+        try {
+          const settings = await this.databaseService.getAppSettings('default_user')
+          res.json({ shortcut: settings.quickCaptureShortcut || 'CommandOrControl+Shift+S' })
+        } catch (error) {
+          res
+            .status(500)
+            .json({ error: 'Failed to get shortcut', message: (error as Error).message })
+        }
+      }
+    )
+
+    this.app.post(
+      '/api/settings/shortcut',
+      async (req: express.Request, res: express.Response) => {
+        try {
+          const { shortcut } = req.body
+          if (!shortcut || shortcut.trim() === '') {
+            res.status(400).json({ error: 'Shortcut cannot be empty' })
+            return
+          }
+          await this.databaseService.saveAppSettings('default_user', { quickCaptureShortcut: shortcut })
+          res.json({ success: true })
+        } catch (error) {
+          res
+            .status(400)
+            .json({ error: 'Failed to save shortcut', message: (error as Error).message })
+        }
+      }
+    )
   }
 
   private setupPluginRoutes(): void {
@@ -513,6 +560,160 @@ export class APIServer {
       } else {
         next()
       }
+    })
+
+    // Event types endpoints
+    this.app.get('/api/events/types', (req: express.Request, res: express.Response) => {
+      try {
+        const { domain, source } = req.query
+        const types = this.pluginManager.getEventTypes({
+          domain: domain as 'core' | 'knowledge' | 'information' | 'system' | undefined,
+          source: source as 'core' | 'plugin' | undefined
+        })
+        res.json({
+          total: types.length,
+          types
+        })
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get event types', message: (error as Error).message })
+      }
+    })
+
+    this.app.get('/api/events/types/:type', (req: express.Request, res: express.Response) => {
+      try {
+        const eventType = this.pluginManager.getEventType(req.params.type)
+        if (!eventType) {
+          res.status(404).json({ error: 'Event type not found' })
+          return
+        }
+        res.json(eventType)
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get event type', message: (error as Error).message })
+      }
+    })
+
+    // Event history endpoint
+    this.app.get('/api/events', async (req: express.Request, res: express.Response) => {
+      try {
+        const page = parseInt(req.query.page as string) || 1
+        const pageSize = parseInt(req.query.pageSize as string) || 20
+        const eventType = req.query.eventType as string | undefined
+        const startDate = req.query.startDate as string | undefined
+        const endDate = req.query.endDate as string | undefined
+        const search = req.query.search as string | undefined
+
+        const result = await this.databaseService.getTriggerEvents({
+          page,
+          pageSize,
+          eventType,
+          startDate,
+          endDate,
+          search
+        })
+
+        // 处理截图路径，转为 base64
+        const processedEvents = this.processEventScreenshots(result.events)
+        res.json({ ...result, events: processedEvents })
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get events', message: (error as Error).message })
+      }
+    })
+
+    // SSE 实时事件流
+    this.app.get('/api/events/stream', async (req: express.Request, res: express.Response) => {
+      const clientId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const sinceEventId = req.query.since as string | undefined
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      })
+
+      // 注册客户端
+      this.sseClients.set(clientId, { res, lastEventId: sinceEventId || null })
+
+      // 发送初始数据
+      try {
+        const events = await this.databaseService.getLatestEventsSince(sinceEventId)
+        if (events.length > 0) {
+          const processedEvents = this.processEventScreenshots(events)
+          res.write(`data: ${JSON.stringify({ type: 'init', events: processedEvents })}\n\n`)
+          this.sseClients.set(clientId, { res, lastEventId: events[0].id })
+        }
+      } catch (error) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: (error as Error).message })}\n\n`)
+      }
+
+      // 启动轮询（如果还没启动）
+      this.startSsePolling()
+
+      // 客户端断开时清理
+      req.on('close', () => {
+        this.sseClients.delete(clientId)
+        if (this.sseClients.size === 0) {
+          this.stopSsePolling()
+        }
+      })
+    })
+  }
+
+  // SSE 轮询推送新事件
+  private startSsePolling(): void {
+    if (this.ssePollInterval) return
+
+    this.ssePollInterval = setInterval(async () => {
+      if (this.sseClients.size === 0) return
+
+      for (const [clientId, client] of this.sseClients) {
+        try {
+          const events = await this.databaseService.getLatestEventsSince(client.lastEventId || undefined)
+          if (events.length > 0) {
+            // 过滤掉已经在 lastEventId 之前的
+            const newEvents = client.lastEventId
+              ? events.filter(e => e.id !== client.lastEventId)
+              : events
+
+            if (newEvents.length > 0) {
+              const processedEvents = this.processEventScreenshots(newEvents)
+              client.res.write(`data: ${JSON.stringify({ type: 'update', events: processedEvents })}\n\n`)
+              client.lastEventId = newEvents[0].id
+            }
+          }
+        } catch (error) {
+          console.error(`SSE poll error for client ${clientId}:`, error)
+        }
+      }
+    }, 2000) // 每 2 秒检查一次
+  }
+
+  private stopSsePolling(): void {
+    if (this.ssePollInterval) {
+      clearInterval(this.ssePollInterval)
+      this.ssePollInterval = null
+    }
+  }
+
+  // 处理事件中的截图路径：读取文件转 base64 字符串
+  private processEventScreenshots(events: TriggerEvent[]): Array<TriggerEvent & { screenshotBase64?: string }> {
+    return events.map((event) => {
+      const eventData: Record<string, unknown> = { ...event }
+      if (event.content?.screenshotPath) {
+        const screenshotPath = event.content.screenshotPath as string
+        try {
+          if (fs.existsSync(screenshotPath)) {
+            const buffer = fs.readFileSync(screenshotPath)
+            // Buffer 转 base64 字符串，避免 JSON.stringify 性能问题
+            eventData.screenshotBase64 = buffer.toString('base64')
+            // 从 content 中移除路径，避免重复
+            eventData.content = { ...event.content, screenshotPath: undefined }
+          }
+        } catch (err) {
+          console.error(`[APIServer] Failed to read screenshot: ${screenshotPath}`, err)
+        }
+      }
+      return eventData as TriggerEvent & { screenshotBase64?: string }
     })
   }
 

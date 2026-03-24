@@ -63,6 +63,12 @@ const api = {
       ipcRenderer.invoke('settings:fetchModels', config)
   },
 
+  // Shortcut APIs
+  shortcut: {
+    get: () => ipcRenderer.invoke('shortcut:get'),
+    set: (shortcut: string) => ipcRenderer.invoke('shortcut:set', shortcut)
+  },
+
   // Plugin APIs
   plugins: {
     list: () => ipcRenderer.invoke('plugins:list'),

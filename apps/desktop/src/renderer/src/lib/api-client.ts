@@ -38,6 +38,20 @@ export const apiClient = {
       })
       if (!res.ok) throw new Error('Failed to save app settings')
       return res.json()
+    },
+    getShortcut: async () => {
+      const res = await fetch(`${BASE_URL}/settings/shortcut`)
+      if (!res.ok) throw new Error('Failed to get shortcut')
+      return res.json()
+    },
+    saveShortcut: async (shortcut: string) => {
+      const res = await fetch(`${BASE_URL}/settings/shortcut`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shortcut })
+      })
+      if (!res.ok) throw new Error('Failed to save shortcut')
+      return res.json()
     }
   },
   monitoring: {
@@ -130,6 +144,42 @@ export const apiClient = {
         body: JSON.stringify({ id, config })
       })
       if (!res.ok) throw new Error('Failed to update plugin config')
+      return res.json()
+    }
+  },
+  events: {
+    getTypes: async (options?: { domain?: string; source?: string }) => {
+      const params = new URLSearchParams()
+      if (options?.domain) params.append('domain', options.domain)
+      if (options?.source) params.append('source', options.source)
+      const query = params.toString()
+      const res = await fetch(`${BASE_URL}/events/types${query ? `?${query}` : ''}`)
+      if (!res.ok) throw new Error('Failed to fetch event types')
+      return res.json()
+    },
+    getType: async (type: string) => {
+      const res = await fetch(`${BASE_URL}/events/types/${encodeURIComponent(type)}`)
+      if (!res.ok) throw new Error('Failed to fetch event type')
+      return res.json()
+    },
+    getHistory: async (options?: {
+      page?: number
+      pageSize?: number
+      eventType?: string
+      startDate?: string
+      endDate?: string
+      search?: string
+    }) => {
+      const params = new URLSearchParams()
+      if (options?.page) params.append('page', String(options.page))
+      if (options?.pageSize) params.append('pageSize', String(options.pageSize))
+      if (options?.eventType) params.append('eventType', options.eventType)
+      if (options?.startDate) params.append('startDate', options.startDate)
+      if (options?.endDate) params.append('endDate', options.endDate)
+      if (options?.search) params.append('search', options.search)
+      const query = params.toString()
+      const res = await fetch(`${BASE_URL}/events${query ? `?${query}` : ''}`)
+      if (!res.ok) throw new Error('Failed to fetch event history')
       return res.json()
     }
   }

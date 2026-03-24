@@ -7,6 +7,7 @@ import Overlay from './pages/Overlay'
 import OverlayPresentation from './pages/presentation/Overlay'
 import SidebarPresentation from './pages/presentation/Sidebar'
 import BubblePresentation from './pages/presentation/Bubble'
+import EventHistory from './pages/EventHistory'
 import Layout from './components/Layout'
 import { getPluginRoutes, subscribeToPluginUpdates } from './plugin-registry'
 import { initializePlugins } from './plugins'
@@ -53,6 +54,7 @@ function App(): React.JSX.Element {
             <Routes>
               <Route path="/" element={<Monitor />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/events" element={<EventHistory />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/plugins" element={<Plugins />} />
               <Route path="/overlay" element={<Overlay />} />

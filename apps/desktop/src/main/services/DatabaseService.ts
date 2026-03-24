@@ -214,7 +214,9 @@ export class DatabaseService {
       'CREATE INDEX IF NOT EXISTS idx_insights_item_id ON insights(item_id)',
       'CREATE INDEX IF NOT EXISTS idx_user_actions_item_id ON user_actions(item_id)',
       'CREATE INDEX IF NOT EXISTS idx_monitoring_sessions_user_id ON monitoring_sessions(user_id)',
-      'CREATE INDEX IF NOT EXISTS idx_integration_configs_user_id ON integration_configs(user_id)'
+      'CREATE INDEX IF NOT EXISTS idx_integration_configs_user_id ON integration_configs(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_trigger_events_event_type ON trigger_events(event_type)',
+      'CREATE INDEX IF NOT EXISTS idx_trigger_events_triggered_at ON trigger_events(triggered_at DESC)'
     ]
 
     for (const indexSql of indexes) {
@@ -839,7 +841,7 @@ export class DatabaseService {
   }
   // ── App Settings (notification toggle, etc.) ──
 
-  async getAppSettings(userId: string): Promise<{ notificationsEnabled: boolean }> {
+  async getAppSettings(userId: string): Promise<{ notificationsEnabled: boolean; quickCaptureShortcut?: string }> {
     const row = await this.get(
       'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
       [userId, 'app_settings']
@@ -847,12 +849,15 @@ export class DatabaseService {
     if (!row) return { notificationsEnabled: true }
     const r = row as Record<string, unknown>
     const settings = JSON.parse(String(r.settings ?? '{}'))
-    return { notificationsEnabled: settings.notificationsEnabled !== false }
+    return {
+      notificationsEnabled: settings.notificationsEnabled !== false,
+      quickCaptureShortcut: settings.quickCaptureShortcut
+    }
   }
 
   async saveAppSettings(
     userId: string,
-    settings: { notificationsEnabled: boolean }
+    settings: { notificationsEnabled?: boolean; quickCaptureShortcut?: string }
   ): Promise<void> {
     const row = await this.get(
       'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
@@ -862,9 +867,11 @@ export class DatabaseService {
 
     if (row) {
       const r = row as Record<string, unknown>
+      const existingSettings = JSON.parse(String(r.settings ?? '{}'))
+      const mergedSettings = { ...existingSettings, ...settings }
       await this.run(
         'UPDATE integration_configs SET settings = ?, updated_at = ? WHERE id = ?',
-        [JSON.stringify(settings), now, String(r.id)]
+        [JSON.stringify(mergedSettings), now, String(r.id)]
       )
     } else {
       const id = uuidv4()
@@ -1091,6 +1098,128 @@ export class DatabaseService {
       userId: String(row.user_id),
       metadata: JSON.parse(String(row.metadata ?? '{}'))
     }))
+  }
+
+  // Trigger Event operations
+  async getTriggerEvents(options: {
+    page?: number
+    pageSize?: number
+    eventType?: string
+    startDate?: string
+    endDate?: string
+    search?: string
+  } = {}): Promise<{
+    events: TriggerEvent[]
+    total: number
+    page: number
+    pageSize: number
+    totalPages: number
+  }> {
+    const { page = 1, pageSize = 20, eventType, startDate, endDate, search } = options
+
+    const safePageSize = Math.min(Math.max(1, pageSize), 100)
+    const offset = (page - 1) * safePageSize
+
+    const conditions: string[] = []
+    const params: (string | number)[] = []
+
+    if (eventType) {
+      conditions.push('event_type = ?')
+      params.push(eventType)
+    }
+
+    if (startDate) {
+      conditions.push('triggered_at >= ?')
+      params.push(startDate)
+    }
+
+    if (endDate) {
+      conditions.push('triggered_at <= ?')
+      params.push(endDate)
+    }
+
+    if (search) {
+      conditions.push('content LIKE ?')
+      params.push(`%${search}%`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const countRow = await this.get(
+      `SELECT COUNT(*) as count FROM trigger_events ${whereClause}`,
+      params
+    )
+    const total = Number((countRow as Record<string, unknown>)?.count ?? 0)
+
+    const rows = await this.all(
+      `SELECT * FROM trigger_events ${whereClause} ORDER BY triggered_at DESC LIMIT ? OFFSET ?`,
+      [...params, safePageSize, offset]
+    )
+
+    const events: TriggerEvent[] = rows.map((row) => {
+      const r = row as Record<string, unknown>
+      return {
+        id: String(r.id),
+        sessionId: String(r.session_id),
+        eventType: String(r.event_type),
+        content: JSON.parse(String(r.content ?? '{}')),
+        confidence: Number(r.confidence ?? 0),
+        triggeredAt: String(r.triggered_at)
+      }
+    })
+
+    return {
+      events,
+      total,
+      page,
+      pageSize: safePageSize,
+      totalPages: Math.ceil(total / safePageSize)
+    }
+  }
+
+  // 获取自指定事件 ID 之后的最新事件（用于 SSE 实时推送）
+  async getLatestEventsSince(sinceEventId?: string, limit: number = 50): Promise<TriggerEvent[]> {
+    if (!sinceEventId) {
+      // 首次获取，返回最新的 limit 条
+      const rows = await this.all(
+        'SELECT * FROM trigger_events ORDER BY triggered_at DESC LIMIT ?',
+        [limit]
+      )
+      return rows.map((row) => {
+        const r = row as Record<string, unknown>
+        return {
+          id: String(r.id),
+          sessionId: String(r.session_id),
+          eventType: String(r.event_type),
+          content: JSON.parse(String(r.content ?? '{}')),
+          confidence: Number(r.confidence ?? 0),
+          triggeredAt: String(r.triggered_at)
+        }
+      })
+    }
+
+    // 获取指定事件之后的最新事件
+    const sinceRow = await this.get('SELECT triggered_at FROM trigger_events WHERE id = ?', [sinceEventId])
+    if (!sinceRow) {
+      return []
+    }
+
+    const rows = await this.all(
+      'SELECT * FROM trigger_events WHERE triggered_at > ? ORDER BY triggered_at DESC LIMIT ?',
+      [(sinceRow as Record<string, unknown>).triggered_at, limit]
+    )
+
+    return rows.map((row) => {
+      const r = row as Record<string, unknown>
+      return {
+        id: String(r.id),
+        sessionId: String(r.session_id),
+        eventType: String(r.event_type),
+        content: JSON.parse(String(r.content ?? '{}')),
+        confidence: Number(r.confidence ?? 0),
+        triggeredAt: String(r.triggered_at)
+      }
+    })
   }
 
   async close(): Promise<void> {

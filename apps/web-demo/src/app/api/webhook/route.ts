@@ -70,10 +70,16 @@ export async function POST(req: NextRequest) {
   let detectedType: DetectedType = 'unknown'
   let markdown: string | undefined
   let multimodal: MultimodalResource | null = null
+  let screenshotBuffer: Buffer | null = null
 
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData()
     event = String(form.get('event') || event)
+
+    // Only accept raw.created events
+    if (event !== 'raw.created') {
+      return NextResponse.json({ success: true, ignored: true, reason: 'not_raw_created' })
+    }
 
     const payloadString = String(form.get('payload') || '{}')
     payload = JSON.parse(payloadString) as Record<string, unknown>
@@ -113,6 +119,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       event?: string
       payload?: Record<string, unknown>
+      screenshotBuffer?: Buffer | { type: 'Buffer'; data: number[] }
       payloadBase64Images?: string[]
       detectedType?: DetectedType
       markdown?: string
@@ -122,7 +129,36 @@ export async function POST(req: NextRequest) {
     }
 
     event = body.event || event
+
+    // Only accept raw.created events
+    if (event !== 'raw.created') {
+      return NextResponse.json({ success: true, ignored: true, reason: 'not_raw_created' })
+    }
+
     payload = body.payload || {}
+
+    // Handle screenshotBuffer from PluginManager (serialized as { type: 'Buffer', data: [...] })
+    if (body.screenshotBuffer) {
+      const buf = body.screenshotBuffer
+      if (typeof buf === 'object' && 'type' in buf && buf.type === 'Buffer' && Array.isArray(buf.data)) {
+        screenshotBuffer = Buffer.from(buf.data)
+      } else if (Buffer.isBuffer(buf)) {
+        screenshotBuffer = buf
+      }
+
+      if (screenshotBuffer) {
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', id)
+        await mkdir(uploadDir, { recursive: true })
+        const filename = `${Date.now()}-screenshot.png`
+        await writeFile(path.join(uploadDir, filename), screenshotBuffer)
+        attachments.push(`/uploads/${id}/${filename}`)
+        // Remove screenshotPath from payload if present
+        if (payload && typeof payload === 'object' && 'screenshotPath' in payload) {
+          delete (payload as Record<string, unknown>).screenshotPath
+        }
+      }
+    }
+
     detectedType = body.detectedType || detectedType
     markdown = body.markdown
     eventSource = body.eventSource || eventSource
@@ -205,6 +241,7 @@ export async function POST(req: NextRequest) {
           attachments,
           markdown,
           detectedType,
+          screenshotBase64: screenshotBuffer ? screenshotBuffer.toString('base64') : undefined,
         })
         await updateEventAnalysis(id, prompt, result)
       } catch (error) {

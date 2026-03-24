@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, Settings, Plug, Sparkles } from 'lucide-react'
+import { Activity, LayoutDashboard, Settings, Plug, Sparkles, History } from 'lucide-react'
 import type React from 'react'
 
 import { getPluginSidebarItems, subscribeToPluginUpdates } from '../plugin-registry'
@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 const navItems = [
   { path: '/', label: '监控', icon: Activity },
   { path: '/dashboard', label: '知识库', icon: LayoutDashboard },
+  { path: '/events', label: '事件历史', icon: History },
   { path: '/plugins', label: '插件', icon: Plug },
   { path: '/settings', label: '设置', icon: Settings },
 ]

@@ -12,12 +12,13 @@ import AdmZip from 'adm-zip'
 import * as tar from 'tar'
 
 
-type EventDomain = 'knowledge' | 'information' | 'system'
+type EventDomain = 'core' | 'knowledge' | 'information' | 'system'
 
 interface EventTypeDefinition {
   type: string
   domain: EventDomain
   description: string
+  source: 'core' | 'plugin'
 }
 
 interface EventEnvelope {
@@ -30,14 +31,22 @@ interface EventEnvelope {
 
 const CORE_EVENT_TYPES: EventTypeDefinition[] = [
   {
+    type: 'raw.created',
+    domain: 'core',
+    description: 'Raw screen capture before any OCR/AI analysis. Emitted for each screenshot taken during context capture window.',
+    source: 'core'
+  },
+  {
     type: 'knowledge.created',
     domain: 'knowledge',
-    description: 'A new knowledge item is persisted by the monitoring pipeline.'
+    description: 'A new knowledge item is persisted by the monitoring pipeline.',
+    source: 'core'
   },
   {
     type: 'insight.generated',
     domain: 'information',
-    description: 'A new insight is generated from monitored context.'
+    description: 'A new insight is generated from monitored context.',
+    source: 'core'
   }
 ]
 
@@ -507,7 +516,8 @@ export class PluginManager extends EventEmitter {
     return {
       type,
       domain: normalizedDomain as EventDomain,
-      description
+      description,
+      source: definition.source || 'plugin'
     }
   }
 
@@ -533,8 +543,22 @@ export class PluginManager extends EventEmitter {
     }
   }
 
-  private getEventTypes(): EventTypeDefinition[] {
-    return Array.from(this.eventTypeRegistry.values()).sort((a, b) => a.type.localeCompare(b.type))
+  public getEventTypes(options?: { domain?: EventDomain; source?: 'core' | 'plugin' }): EventTypeDefinition[] {
+    let types = Array.from(this.eventTypeRegistry.values()).sort((a, b) => a.type.localeCompare(b.type))
+
+    if (options?.domain) {
+      types = types.filter(t => t.domain === options.domain)
+    }
+
+    if (options?.source) {
+      types = types.filter(t => t.source === options.source)
+    }
+
+    return types
+  }
+
+  public getEventType(type: string): EventTypeDefinition | undefined {
+    return this.eventTypeRegistry.get(type)
   }
 
   // Hook Execution Methods
@@ -610,15 +634,60 @@ export class PluginManager extends EventEmitter {
   ): Promise<void> {
     const definition = this.eventTypeRegistry.get(event)
 
+    console.log(`[PluginManager] triggerEvent called: ${event}, payload.sessionId: ${payload.sessionId}`)
+
     if (!definition) {
       console.warn(`[PluginManager] Skip unregistered event type: ${event}`)
+      console.log(`[PluginManager] Registered event types:`, Array.from(this.eventTypeRegistry.keys()))
       return
+    }
+
+    // Write to database first
+    const sessionId = payload.sessionId as string | undefined
+    console.log(`[PluginManager] sessionId: ${sessionId}, definition exists: ${!!definition}`)
+    if (sessionId) {
+      const confidence =
+        Array.isArray((payload as { tags?: Array<{ confidence?: number }> }).tags) &&
+        typeof (payload as { tags?: Array<{ confidence?: number }> }).tags![0]?.confidence ===
+          'number'
+          ? ((payload as { tags?: Array<{ confidence?: number }> }).tags![0]!.confidence as number)
+          : 0.5
+
+      console.log(`[PluginManager] Creating trigger event: ${event}, sessionId: ${sessionId}`)
+      await this.databaseService.createTriggerEvent({
+        sessionId,
+        eventType: event,
+        content: payload,
+        confidence
+      })
+      console.log(`[PluginManager] Trigger event created successfully: ${event}`)
+    } else {
+      console.log(`[PluginManager] Skipping database write - no sessionId`)
+    }
+
+    // Convert screenshotPath to Buffer before sending to plugins
+    let processedPayload = { ...payload }
+    if (processedPayload.screenshotPath && typeof processedPayload.screenshotPath === 'string') {
+      const screenshotPath = processedPayload.screenshotPath as string
+      try {
+        if (fs.existsSync(screenshotPath)) {
+          const buffer = fs.readFileSync(screenshotPath)
+          processedPayload = {
+            ...processedPayload,
+            screenshotBuffer: buffer,
+            screenshotPath: undefined // Remove path, only send buffer
+          }
+          console.log(`[PluginManager] Converted screenshotPath to Buffer for plugin delivery: ${screenshotPath}`)
+        }
+      } catch (err) {
+        console.error(`[PluginManager] Failed to read screenshot file: ${screenshotPath}`, err)
+      }
     }
 
     const envelope: EventEnvelope = {
       type: definition.type,
       domain: definition.domain,
-      payload: Object.freeze({ ...payload }),
+      payload: Object.freeze(processedPayload),
       emittedAt: new Date().toISOString(),
       source
     }

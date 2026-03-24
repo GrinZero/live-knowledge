@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/bugyaluwang/project/live-knowledge/apps -type f -name *.ts -o -name *.tsx)",
+      "Bash(find /Users/bugyaluwang/project/live-knowledge/plugins -type f -name *.ts -o -name *.tsx)",
+      "Bash(find /Users/bugyaluwang/project/live-knowledge/packages -type f -name *.ts -o -name *.tsx)",
+      "Bash(openspec --version)",
+      "Bash(openspec status:*)",
+      "Bash(openspec instructions:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc --noEmit -p tsconfig.node.json --composite false)",
+      "Skill(update-config)",
+      "Bash(npx openspec:*)",
+      "Bash(pnpm:*)",
+      "Bash(curl -s http://localhost:3000/api/events)",
+      "Bash(curl -s http://localhost:3000/api/events/types)"
+    ]
+  }
+}
