@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
   let detectedType: DetectedType = 'unknown'
   let markdown: string | undefined
   let multimodal: MultimodalResource | null = null
+  let screenshotBuffer: Buffer | null = null
 
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData()
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       event?: string
       payload?: Record<string, unknown>
+      screenshotBuffer?: Buffer | { type: 'Buffer'; data: number[] }
       payloadBase64Images?: string[]
       detectedType?: DetectedType
       markdown?: string
@@ -134,6 +136,29 @@ export async function POST(req: NextRequest) {
     }
 
     payload = body.payload || {}
+
+    // Handle screenshotBuffer from PluginManager (serialized as { type: 'Buffer', data: [...] })
+    if (body.screenshotBuffer) {
+      const buf = body.screenshotBuffer
+      if (typeof buf === 'object' && 'type' in buf && buf.type === 'Buffer' && Array.isArray(buf.data)) {
+        screenshotBuffer = Buffer.from(buf.data)
+      } else if (Buffer.isBuffer(buf)) {
+        screenshotBuffer = buf
+      }
+
+      if (screenshotBuffer) {
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', id)
+        await mkdir(uploadDir, { recursive: true })
+        const filename = `${Date.now()}-screenshot.png`
+        await writeFile(path.join(uploadDir, filename), screenshotBuffer)
+        attachments.push(`/uploads/${id}/${filename}`)
+        // Remove screenshotPath from payload if present
+        if (payload && typeof payload === 'object' && 'screenshotPath' in payload) {
+          delete (payload as Record<string, unknown>).screenshotPath
+        }
+      }
+    }
+
     detectedType = body.detectedType || detectedType
     markdown = body.markdown
     eventSource = body.eventSource || eventSource
@@ -192,19 +217,13 @@ export async function POST(req: NextRequest) {
     markdown = (await convertWithMarkItDown(attachments[0])) || undefined
   }
 
-  // Clean screenshotPath from payload before storing
-  const cleanPayload = JSON.parse(JSON.stringify(payload, (key, value) => {
-    if (key === 'screenshotPath') return undefined
-    return value
-  }))
-
   await saveEvent({
     id,
     event: normalizedEventType,
     eventDomain,
     eventSource,
     eventTypeCatalog,
-    payload: cleanPayload,
+    payload,
     attachments,
     createdAt,
     detectedType,
@@ -218,10 +237,11 @@ export async function POST(req: NextRequest) {
         const prompt = '请直接给出题目的解题思路、关键步骤和最终答案。'
         const result = await analyzeWithAI({
           userPrompt: prompt,
-          payload: cleanPayload,
+          payload,
           attachments,
           markdown,
           detectedType,
+          screenshotBase64: screenshotBuffer ? screenshotBuffer.toString('base64') : undefined,
         })
         await updateEventAnalysis(id, prompt, result)
       } catch (error) {
