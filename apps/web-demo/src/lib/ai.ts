@@ -6,7 +6,6 @@ export async function analyzeWithAI(input: {
   attachments: string[]
   markdown?: string
   detectedType?: DetectedType
-  screenshotBase64?: string
 }): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -25,30 +24,6 @@ export async function analyzeWithAI(input: {
     input.payload,
   )}\nMarkdown数据: ${input.markdown || '无'}\n附件文件: ${input.attachments.join(', ') || '无'}\n${scenarioHint}`
 
-  // Build messages with image if available (multimodal)
-  const messages: Array<{ role: string; content: string | Array<Record<string, unknown>> }> = [
-    {
-      role: 'system',
-      content: '你擅长理解截图上下文与结构化事件。输出请简洁、准确，并在题解场景明确给出可执行步骤。',
-    },
-  ]
-
-  // Prepare user content (text + optional image)
-  const userContent: string | Array<Record<string, unknown>> = input.screenshotBase64
-    ? [
-        { type: 'text', text: summaryPrompt },
-        {
-          type: 'image_url',
-          image_url: {
-            url: `data:image/png;base64,${input.screenshotBase64}`,
-            detail: 'high',
-          },
-        },
-      ]
-    : summaryPrompt
-
-  messages.push({ role: 'user', content: userContent })
-
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -57,7 +32,14 @@ export async function analyzeWithAI(input: {
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: [
+        {
+          role: 'system',
+          content:
+            '你擅长理解截图上下文与结构化事件。输出请简洁、准确，并在题解场景明确给出可执行步骤。',
+        },
+        { role: 'user', content: summaryPrompt },
+      ],
       temperature: 0.2,
     }),
   })
