@@ -46,7 +46,13 @@ async function ensureStore(): Promise<void> {
 export async function loadEvents(): Promise<WebhookEventRecord[]> {
   await ensureStore()
   const content = await readFile(eventsFile, 'utf8')
-  return JSON.parse(content) as WebhookEventRecord[]
+  try {
+    return JSON.parse(content) as WebhookEventRecord[]
+  } catch {
+    // 文件被并发写入损坏，重置并返回空数组
+    await writeFile(eventsFile, '[]', 'utf8')
+    return []
+  }
 }
 
 function sanitizePayload(payload: Record<string, unknown>): Record<string, unknown> {
