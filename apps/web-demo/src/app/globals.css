@@ -18,6 +18,19 @@ body {
   max-width: 1240px;
   margin: 0 auto;
   padding: 20px 18px 28px;
+  position: relative;
+}
+
+.top-bar {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  z-index: 10;
+}
+
+.focus-mode .top-bar {
+  top: 16px;
+  left: 18px;
 }
 
 .hero {
@@ -351,4 +364,30 @@ details > summary {
   .panel-main {
     min-height: auto;
   }
+}
+
+@media (max-width: 980px) and (orientation: portrait) {
+  .panel-stream.collapsed .panel-header {
+    flex-direction: row;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .panel-stream.collapsed .panel-header h3 {
+    text-align: left;
+    margin-right: auto;
+  }
+
+  .panel-stream.collapsed .panel-actions {
+    flex-direction: row;
+    gap: 4px;
+  }
+}
+
+.focus-mode .grid {
+  display: block;
+}
+
+.focus-mode .panel-main {
+  min-height: calc(100vh - 120px);
 }

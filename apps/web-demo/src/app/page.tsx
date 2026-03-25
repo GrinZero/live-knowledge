@@ -18,6 +18,34 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+function FocusIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path
+        d="M3 8a5 5 0 1 1 1.5 3.5M3 8V4m0 4H7M13 12a5 5 0 1 1 1.5 3.5M13 12v4m0-4h4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ExitFocusIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path
+        d="M8 3H3v5M3 8V4m9 9a5 5 0 1 1 1.5 3.5M12 12v5h5M12 17h5v-5m-9-9H4m4-4V4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function RefreshIcon() {
   return (
     <svg className="icon" viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -61,6 +89,7 @@ export default function HomePage() {
   const [selectedId, setSelectedId] = useState<string>('')
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
   const [eventListCollapsed, setEventListCollapsed] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
   const latestIdRef = useRef<string>('')
 
   const selectedEvent = events.find((item) => item.id === selectedId) || events[0]
@@ -111,7 +140,13 @@ export default function HomePage() {
     : undefined
 
   return (
-    <main className="container">
+    <main className={`container ${focusMode ? 'focus-mode' : ''}`}>
+      <div className="top-bar">
+        <button className="icon-button focus-btn" onClick={() => setFocusMode((v) => !v)} title={focusMode ? '退出专注模式' : '专注模式'}>
+          {focusMode ? <ExitFocusIcon /> : <FocusIcon />}
+        </button>
+      </div>
+      {!focusMode && (
       <section className={`hero ${headerCollapsed ? 'collapsed' : ''}`}>
         <div className="hero-row">
           <div>
@@ -134,8 +169,10 @@ export default function HomePage() {
           </>
         )}
       </section>
+      )}
 
       <section className={`grid ${eventListCollapsed ? 'stream-collapsed' : ''}`}>
+        {!focusMode && (
         <aside className={`panel panel-stream ${eventListCollapsed ? 'collapsed' : ''}`}>
           <div className="panel-header">
             <h3>事件列表</h3>
@@ -179,6 +216,7 @@ export default function HomePage() {
             <div className="stream-collapsed-hint muted">事件流已折叠</div>
           )}
         </aside>
+        )}
 
         <section className="panel panel-main">
           <h3>当前事件</h3>
