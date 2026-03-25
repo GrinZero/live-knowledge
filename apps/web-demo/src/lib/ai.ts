@@ -1,59 +1,62 @@
-import type { DetectedType } from './store'
-
-export async function analyzeWithAI(input: {
-  userPrompt: string
-  payload: Record<string, unknown>
-  attachments: string[]
-  markdown?: string
-  detectedType?: DetectedType
-  screenshotBase64?: string
-}): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY
+/**
+ * Analyze an event payload using OpenAI API.
+ * If payload contains screenshotBase64, uses Vision API for multimodal analysis.
+ */
+export async function analyzeEvent(
+  payload: Record<string, unknown>,
+): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return '未配置 OPENAI_API_KEY，当前返回本地回退分析：请配置模型后启用 AI 详细建议。'
+    return "未配置 OPENAI_API_KEY，无法执行 AI 分析。";
   }
 
-  const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const model = process.env.OPENAI_MODEL || "gpt-4o";
 
-  const scenarioHint =
-    input.detectedType === 'problem_solving'
-      ? '这是题解场景，请优先输出解题步骤、关键知识点和最终答案。'
-      : '请输出结构化建议，结论优先。'
+  const screenshotBase64 =
+    typeof payload.screenshotBase64 === "string"
+      ? payload.screenshotBase64
+      : undefined;
 
-  const summaryPrompt = `你是一个屏幕内容分析助手。\n用户问题: ${input.userPrompt}\n检测类型: ${input.detectedType || 'unknown'}\n事件数据: ${JSON.stringify(
-    input.payload,
-  )}\nMarkdown数据: ${input.markdown || '无'}\n附件文件: ${input.attachments.join(', ') || '无'}\n${scenarioHint}`
+  const { screenshotBase64: _, ...senPayload } = payload;
 
-  // Build messages with image if available (multimodal)
-  const messages: Array<{ role: string; content: string | Array<Record<string, unknown>> }> = [
-    {
-      role: 'system',
-      content:
-        '你擅长理解截图上下文与结构化事件。输出请简洁、准确，并在题解场景明确给出可执行步骤。',
-    },
-  ]
+  const contextText = `你是一个屏幕内容分析助手。以下是一条 raw.created 事件的 payload 数据，请分析屏幕内容并给出结构化建议。\n\n事件数据:\n${JSON.stringify(senPayload, null, 2)}
+  
+  为了方便用户阅读，你应当用以下结构去返回
 
-  // Prepare user content (text + optional image)
-  const userContent: string | Array<Record<string, unknown>> = input.screenshotBase64
+  [上下文] 用最简短的方式描述当前上下文。
+  [建议] 如果存在算法、代码相关问题，应当给出具体的思路，然后给出代码建议(优先使用 TypeScript)
+  [注意] 建议应当是具体的、可执行的代码，不能只是理论。
+  `;
+
+  const userContent: string | Array<Record<string, unknown>> = screenshotBase64
     ? [
-        { type: 'text', text: summaryPrompt },
+        { type: "text", text: contextText },
         {
-          type: 'image_url',
+          type: "image_url",
           image_url: {
-            url: `data:image/png;base64,${input.screenshotBase64}`,
-            detail: 'high',
+            url: `data:image/png;base64,${screenshotBase64}`,
+            detail: "high",
           },
         },
       ]
-    : summaryPrompt
+    : contextText;
 
-  messages.push({ role: 'user', content: userContent })
+  const messages = [
+    {
+      role: "system" as const,
+      content: "你擅长理解截图上下文与结构化事件。输出请简洁、准确，结论优先。",
+    },
+    {
+      role: "user" as const,
+      content: userContent,
+    },
+  ];
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
@@ -61,16 +64,16 @@ export async function analyzeWithAI(input: {
       messages,
       temperature: 0.2,
     }),
-  })
+  });
 
   if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`AI 请求失败: ${response.status} ${text}`)
+    const text = await response.text();
+    throw new Error(`AI 请求失败: ${response.status} ${text}`);
   }
 
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
-  }
+    choices?: Array<{ message?: { content?: string } }>;
+  };
 
-  return data.choices?.[0]?.message?.content || 'AI 未返回有效内容'
+  return data.choices?.[0]?.message?.content || "AI 未返回有效内容";
 }

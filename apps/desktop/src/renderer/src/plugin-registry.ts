@@ -82,7 +82,11 @@ export async function loadInstalledPlugins() {
     console.log('Loading renderer plugins:', plugins)
 
     for (const plugin of plugins) {
-      if (document.getElementById(`plugin-script-${plugin.id}`)) continue
+      // 每次都移除旧标签（如果存在），强制重新加载，确保使用最新插件代码
+      const existingScript = document.getElementById(`plugin-script-${plugin.id}`)
+      if (existingScript) {
+        existingScript.remove()
+      }
 
       const script = document.createElement('script')
       script.id = `plugin-script-${plugin.id}`

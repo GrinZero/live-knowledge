@@ -325,7 +325,7 @@ export class AIEngine {
           baseURL: this.baseUrl
         })
         this.provider = provider
-        this.modelName = model || 'gpt-4.1'
+        this.modelName = model || 'gpt-5.1'
         this.isEnabled = true
         console.log(`AIEngine: Switched to ${provider} (Model: ${this.modelName})`)
       } catch (error) {

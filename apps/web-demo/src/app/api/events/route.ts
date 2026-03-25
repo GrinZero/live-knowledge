@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server'
-import { loadEvents } from '@/lib/store'
+import { loadEvents, clearEvents } from '@/lib/store'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const events = await loadEvents()
-  return NextResponse.json(events)
+  // Already stored newest-first (unshift on save)
+  return NextResponse.json({ events })
+}
+
+export async function DELETE() {
+  await clearEvents()
+  return NextResponse.json({ success: true })
 }

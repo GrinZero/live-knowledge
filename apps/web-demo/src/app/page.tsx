@@ -1,26 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { EventDomain } from '@/lib/event-types'
-import type { MultimodalResource } from '@/lib/multimodal'
-
-type EventRecord = {
-  id: string
-  event: string
-  createdAt: string
-  eventDomain?: EventDomain
-  eventSource?: string
-  payload: Record<string, unknown>
-  attachments: string[]
-  multimodal?: MultimodalResource
-  detectedType?: 'problem_solving' | 'coding' | 'meeting' | 'document' | 'unknown'
-  markdown?: string
-  analysis?: { result: string; analyzedAt: string; prompt: string }
-}
-
-const DEFAULT_QUESTION = '请基于这条事件直接给出题目解法和答案（如果不是题目则给关键建议）'
+import type { EventRecord } from '@/lib/store'
 
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -49,63 +32,70 @@ function RefreshIcon() {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path
+        d="M5.5 7v9a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V7M3.5 5h13M8 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function AnalysisStatus({ analysis }: { analysis: EventRecord['analysis'] }) {
+  if (!analysis) {
+    return <span className="status-badge pending">pending</span>
+  }
+  if ('error' in analysis) {
+    return <span className="status-badge error" title={analysis.error}>error</span>
+  }
+  return <span className="status-badge completed">completed</span>
+}
+
 export default function HomePage() {
   const [events, setEvents] = useState<EventRecord[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
-  const [question, setQuestion] = useState(DEFAULT_QUESTION)
-  const [result, setResult] = useState('')
-  const [loading, setLoading] = useState(false)
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
   const [eventListCollapsed, setEventListCollapsed] = useState(false)
-  const [guideOpen, setGuideOpen] = useState(false)
-  const autoTimerRef = useRef<NodeJS.Timeout | null>(null)
   const latestIdRef = useRef<string>('')
 
-  const selectedEvent = useMemo(
-    () => events.find((item) => item.id === selectedId) || events[0],
-    [events, selectedId],
-  )
-
-  const streamEvents = useMemo(
-    () => events.filter((item) => item.eventDomain === 'information'),
-    [events],
-  )
-
-  const knowledgeEvents = useMemo(
-    () => events.filter((item) => item.eventDomain === 'knowledge'),
-    [events],
-  )
+  const selectedEvent = events.find((item) => item.id === selectedId) || events[0]
 
   const fetchEvents = async () => {
     const response = await fetch('/api/events', { cache: 'no-store' })
-    const data = (await response.json()) as EventRecord[]
+    const data = (await response.json()) as { events: EventRecord[] }
+    const list = data.events || []
 
-    const latestIncoming = data[0]?.id
+    const latestIncoming = list[0]?.id
     const previousLatest = latestIdRef.current
 
-    setEvents(data)
+    setEvents(list)
 
-    if (!latestIncoming) {
-      return
-    }
+    if (!latestIncoming) return
 
-    if (!selectedId) {
+    if (!selectedId || latestIncoming !== previousLatest) {
       setSelectedId(latestIncoming)
       latestIdRef.current = latestIncoming
       return
     }
 
-    if (latestIncoming !== previousLatest) {
-      setSelectedId(latestIncoming)
-      latestIdRef.current = latestIncoming
-      return
-    }
-
-    if (!data.some((item) => item.id === selectedId)) {
+    if (!list.some((item) => item.id === selectedId)) {
       setSelectedId(latestIncoming)
     }
 
     latestIdRef.current = latestIncoming
+  }
+
+  const clearEvents = async () => {
+    if (!confirm('确认清除所有事件记录？')) return
+    await fetch('/api/events', { method: 'DELETE' })
+    setEvents([])
+    setSelectedId('')
+    latestIdRef.current = ''
   }
 
   useEffect(() => {
@@ -113,45 +103,12 @@ export default function HomePage() {
     const timer = setInterval(() => {
       void fetchEvents()
     }, 5000)
-
     return () => clearInterval(timer)
   }, [selectedId])
 
-  const runAnalyze = async (target?: EventRecord) => {
-    const eventToAnalyze = target || selectedEvent
-    if (!eventToAnalyze) return
-
-    setLoading(true)
-
-    try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: eventToAnalyze.id, userPrompt: question }),
-      })
-      const data = (await response.json()) as { result?: string; error?: string }
-      setResult(data.result || data.error || '没有返回结果')
-      await fetchEvents()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!selectedEvent) return
-
-    if (autoTimerRef.current) {
-      clearTimeout(autoTimerRef.current)
-    }
-
-    autoTimerRef.current = setTimeout(() => {
-      void runAnalyze(selectedEvent)
-    }, 1200)
-
-    return () => {
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
-    }
-  }, [selectedEvent?.id, question])
+  const analysisResult = selectedEvent?.analysis && 'result' in selectedEvent.analysis
+    ? selectedEvent.analysis.result
+    : undefined
 
   return (
     <main className="container">
@@ -159,7 +116,7 @@ export default function HomePage() {
         <div className="hero-row">
           <div>
             <p className="eyebrow">LIVE KNOWLEDGE</p>
-            <h1>Problem Solving Feed</h1>
+            <h1>Event Feed</h1>
           </div>
           <button className="icon-button" onClick={() => setHeaderCollapsed((v) => !v)}>
             <ChevronIcon collapsed={headerCollapsed} />
@@ -168,38 +125,24 @@ export default function HomePage() {
 
         {!headerCollapsed && (
           <>
-            <p className="subtitle">统一事件类型后，信息流（insight）与知识库（knowledge）会明确分层展示。</p>
+            <p className="subtitle">接收 raw.created 事件，自动触发 AI 分析。</p>
             <div className="hero-meta">
               <span>Webhook: /api/webhook</span>
               <span>自动刷新 5s</span>
-              <span>自动分析 1.2s 防抖</span>
-              <button className="text-button" onClick={() => setGuideOpen(true)} title="查看多模态说明">多模态说明</button>
+              <span>接收即分析</span>
             </div>
           </>
         )}
       </section>
 
-
-      {guideOpen && (
-        <section className="panel guide-panel">
-          <div className="panel-header">
-            <h3>多模态传输快速说明</h3>
-            <button className="text-button" onClick={() => setGuideOpen(false)}>关闭说明</button>
-          </div>
-          <ul className="muted guide-list">
-            <li><strong>raw</strong>：发送结构化 JSON（multimodal.raw），适合 API 直接消费。</li>
-            <li><strong>markitdown</strong>：发送 markdown 文本（multimodal.markdown），适合 AI 二次分析。</li>
-            <li><strong>local_file</strong>：仅发送本地路径，仅适合同机流程，远端 webhook 不可直接读取。</li>
-            <li>Web-demo 要求至少包含 raw 或 markitdown，不能仅 local_file。</li>
-          </ul>
-        </section>
-      )}
-
       <section className={`grid ${eventListCollapsed ? 'stream-collapsed' : ''}`}>
         <aside className={`panel panel-stream ${eventListCollapsed ? 'collapsed' : ''}`}>
           <div className="panel-header">
-            <h3>信息流事件</h3>
+            <h3>事件列表</h3>
             <div className="panel-actions">
+              <button className="icon-button" onClick={clearEvents} title="清除所有记录">
+                <TrashIcon />
+              </button>
               <button className="icon-button" onClick={fetchEvents} title="刷新">
                 <RefreshIcon />
               </button>
@@ -219,17 +162,15 @@ export default function HomePage() {
                 <button
                   key={item.id}
                   className={`event-item ${selectedEvent?.id === item.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedId(item.id)
-                    if (item.analysis?.result) setResult(item.analysis.result)
-                  }}
+                  onClick={() => setSelectedId(item.id)}
                 >
                   <div className="event-top">
-                    <strong>{item.eventDomain || 'unknown'} · {item.detectedType || 'unknown'}</strong>
-                    <span>{new Date(item.createdAt).toLocaleTimeString()}</span>
+                    <strong>{item.type}</strong>
+                    <span>{new Date(item.receivedAt).toLocaleTimeString()}</span>
                   </div>
-                  <div>{item.event}</div>
-                  <small className="muted">mode: {item.multimodal?.mode || 'raw'}</small>
+                  <div className="event-bottom">
+                    <AnalysisStatus analysis={item.analysis} />
+                  </div>
                 </button>
               ))}
               {events.length === 0 && <p className="muted">暂无事件，等待桌面端推送...</p>}
@@ -243,56 +184,36 @@ export default function HomePage() {
           <h3>当前事件</h3>
           {selectedEvent ? (
             <>
-              {(result || selectedEvent.analysis?.result) && (
+              {analysisResult && (
                 <div className="answer-box priority">
-                  <h4>AI 结果（自动）</h4>
+                  <h4>AI 分析结果</h4>
                   <div className="answer-content markdown-body">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {result || selectedEvent.analysis?.result || ''}
+                      {analysisResult}
                     </ReactMarkdown>
                   </div>
                 </div>
               )}
 
+              {selectedEvent.analysis && 'error' in selectedEvent.analysis && (
+                <div className="answer-box error-box">
+                  <h4>分析失败</h4>
+                  <p>{selectedEvent.analysis.error}</p>
+                </div>
+              )}
+
               <p className="muted">
-                事件类型：<strong>{selectedEvent.event}</strong>
-                {' · '}域：<strong>{selectedEvent.eventDomain || 'unknown'}</strong>
-                {' · '}内容类型：<strong>{selectedEvent.detectedType || 'unknown'}</strong>
-              </p>
-              <p className="muted">
-                信息流事件：<strong>{streamEvents.length}</strong> 条，知识库事件：<strong>{knowledgeEvents.length}</strong> 条
-              </p>
-              <p className="muted">
-                多模态模式：<strong>{selectedEvent.multimodal?.mode || 'raw'}</strong>
+                事件类型：<strong>{selectedEvent.type}</strong>
+                {' · '}分析状态：<AnalysisStatus analysis={selectedEvent.analysis} />
               </p>
 
               <details>
                 <summary>事件详情（折叠）</summary>
                 <pre>{JSON.stringify(selectedEvent.payload, null, 2)}</pre>
               </details>
-
-              {selectedEvent.markdown && (
-                <details>
-                  <summary>查看 markdown 载荷</summary>
-                  <pre>{selectedEvent.markdown}</pre>
-                </details>
-              )}
-
-              <div className="attachments-grid">
-                {selectedEvent.attachments.map((path) => (
-                  <a key={path} href={path} target="_blank" className="attachment-card">
-                    <img src={path} alt={path} />
-                    <span>{path}</span>
-                  </a>
-                ))}
-              </div>
-
-              <h3>分析输入（自动触发）</h3>
-              <textarea rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} />
-              {loading && <p className="muted">AI 正在自动分析最新事件...</p>}
             </>
           ) : (
-            <p className="muted">请选择一条事件。</p>
+            <p className="muted">暂无事件。</p>
           )}
         </section>
       </section>

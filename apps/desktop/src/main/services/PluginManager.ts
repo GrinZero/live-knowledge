@@ -4,7 +4,7 @@ import {
   PluginContext,
   EventTypeDefinition as SdkEventTypeDefinition,
   EventDispatchContext
-} from '../../../../../packages/plugin-sdk/src'
+} from '@live-knowledge/plugin-sdk'
 import { Action } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
 import { DatabaseService } from './DatabaseService'
@@ -683,8 +683,20 @@ export class PluginManager extends EventEmitter {
       console.log(`[PluginManager] Skipping database write - no sessionId`)
     }
 
-    // Convert screenshotPath to Buffer before sending to plugins
+    // Convert screenshot/screenshotPath to Buffer before sending to plugins
     let processedPayload = { ...payload }
+
+    // Handle screenshot (Buffer) -> screenshotBuffer
+    if (processedPayload.screenshot && Buffer.isBuffer(processedPayload.screenshot)) {
+      processedPayload = {
+        ...processedPayload,
+        screenshotBuffer: processedPayload.screenshot,
+        screenshot: undefined // Remove raw screenshot to avoid confusion
+      }
+      console.log('[PluginManager] Converted screenshot to Buffer for plugin delivery')
+    }
+
+    // Handle screenshotPath -> screenshotBuffer
     if (processedPayload.screenshotPath && typeof processedPayload.screenshotPath === 'string') {
       const screenshotPath = processedPayload.screenshotPath as string
       try {

@@ -73,7 +73,7 @@ export default function Settings(): React.JSX.Element {
         setAiConfig((prev) => ({
           ...prev,
           apiKey: cached?.apiKey || '',
-          model: cached?.model || 'gpt-4.1',
+          model: cached?.model || 'gpt-5.1',
           baseUrl: cached?.baseUrl || ''
         }))
       }
@@ -498,7 +498,7 @@ export default function Settings(): React.JSX.Element {
                           value={aiConfig.model}
                           onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
                           placeholder={
-                            aiConfig.provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4.1'
+                            aiConfig.provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'
                           }
                           className={cn(inputClass, 'font-mono')}
                         />
