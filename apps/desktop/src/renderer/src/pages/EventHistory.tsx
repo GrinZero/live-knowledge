@@ -50,7 +50,7 @@ export default function EventHistory(): React.JSX.Element {
 
   const [pageInput, setPageInput] = useState('')
 
-  const [sseInitialized, setSseInitialized] = useState(false)
+  const [, setSseInitialized] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const loadEventsRef = useRef<(() => void) | null>(null)
@@ -200,7 +200,11 @@ export default function EventHistory(): React.JSX.Element {
   }
 
   const hasActiveFilters =
-    eventTypeFilter !== 'all' || selectedEventType || dateRange.start || dateRange.end || searchQuery
+    eventTypeFilter !== 'all' ||
+    selectedEventType ||
+    dateRange.start ||
+    dateRange.end ||
+    searchQuery
 
   const goToPage = (targetPage: number) => {
     const validPage = Math.max(1, Math.min(totalPages, targetPage))
@@ -415,7 +419,10 @@ export default function EventHistory(): React.JSX.Element {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <code className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded selectable" style={{ userSelect: 'text' }}>
+                          <code
+                            className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded selectable"
+                            style={{ userSelect: 'text' }}
+                          >
                             {event.eventType}
                           </code>
                           <span
@@ -424,9 +431,12 @@ export default function EventHistory(): React.JSX.Element {
                               getEventTypeBadgeColor(event.eventType)
                             )}
                           >
-                            {eventTypes.find((t) => t.type === event.eventType)?.domain || 'unknown'}
+                            {eventTypes.find((t) => t.type === event.eventType)?.domain ||
+                              'unknown'}
                           </span>
-                          <span className="text-xs text-gray-400">{formatDate(event.triggeredAt)}</span>
+                          <span className="text-xs text-gray-400">
+                            {formatDate(event.triggeredAt)}
+                          </span>
                         </div>
                         <p className="text-sm text-gray-700 line-clamp-2">
                           {typeof event.content === 'string'
@@ -435,7 +445,9 @@ export default function EventHistory(): React.JSX.Element {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{Math.round(event.confidence * 100)}%</span>
+                        <span className="text-xs text-gray-400">
+                          {Math.round(event.confidence * 100)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -465,21 +477,32 @@ export default function EventHistory(): React.JSX.Element {
 
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">事件类型</label>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    事件类型
+                  </label>
                   <div className="mt-2 flex items-center gap-2">
-                    <code className="px-2 py-1 bg-blue-100 text-blue-700 text-sm font-mono rounded selectable" style={{ userSelect: 'text' }}>
+                    <code
+                      className="px-2 py-1 bg-blue-100 text-blue-700 text-sm font-mono rounded selectable"
+                      style={{ userSelect: 'text' }}
+                    >
                       {selectedEvent.eventType}
                     </code>
                     <span
-                      className={cn('px-2 py-1 text-xs rounded', getEventTypeBadgeColor(selectedEvent.eventType))}
+                      className={cn(
+                        'px-2 py-1 text-xs rounded',
+                        getEventTypeBadgeColor(selectedEvent.eventType)
+                      )}
                     >
-                      {eventTypes.find((t) => t.type === selectedEvent.eventType)?.domain || 'unknown'}
+                      {eventTypes.find((t) => t.type === selectedEvent.eventType)?.domain ||
+                        'unknown'}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">触发时间</label>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    触发时间
+                  </label>
                   <p className="mt-2 text-sm text-gray-900">
                     {new Date(selectedEvent.triggeredAt).toLocaleString('zh-CN')}
                   </p>
@@ -488,7 +511,9 @@ export default function EventHistory(): React.JSX.Element {
                 {/* 截图 */}
                 {base64ToImageUrl(selectedEvent.screenshotBase64) && (
                   <div>
-                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">截图</label>
+                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      截图
+                    </label>
                     <div className="mt-2">
                       <img
                         src={base64ToImageUrl(selectedEvent.screenshotBase64)!}
@@ -500,7 +525,9 @@ export default function EventHistory(): React.JSX.Element {
                 )}
 
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">置信度</label>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    置信度
+                  </label>
                   <div className="mt-2 flex items-center gap-2">
                     <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -508,12 +535,16 @@ export default function EventHistory(): React.JSX.Element {
                         style={{ width: `${selectedEvent.confidence * 100}%` }}
                       />
                     </div>
-                    <span className="text-sm text-gray-700">{Math.round(selectedEvent.confidence * 100)}%</span>
+                    <span className="text-sm text-gray-700">
+                      {Math.round(selectedEvent.confidence * 100)}%
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">内容</label>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    内容
+                  </label>
                   <div className="mt-2 p-4 bg-gray-50 rounded-lg">
                     <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
                       {typeof selectedEvent.content === 'string'
@@ -524,7 +555,9 @@ export default function EventHistory(): React.JSX.Element {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">会话 ID</label>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    会话 ID
+                  </label>
                   <p className="mt-2 text-sm text-gray-600 font-mono">{selectedEvent.sessionId}</p>
                 </div>
               </div>

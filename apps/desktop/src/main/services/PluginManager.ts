@@ -1,5 +1,10 @@
 import { EventEmitter } from 'events'
-import { LiveKnowledgePlugin, PluginContext } from '../../../../../packages/plugin-sdk/src'
+import {
+  LiveKnowledgePlugin,
+  PluginContext,
+  EventTypeDefinition as SdkEventTypeDefinition,
+  EventDispatchContext
+} from '../../../../../packages/plugin-sdk/src'
 import { Action } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
 import { DatabaseService } from './DatabaseService'
@@ -11,13 +16,9 @@ import * as fs from 'fs'
 import AdmZip from 'adm-zip'
 import * as tar from 'tar'
 
-
 type EventDomain = 'core' | 'knowledge' | 'information' | 'system'
 
-interface EventTypeDefinition {
-  type: string
-  domain: EventDomain
-  description: string
+interface EventTypeDefinition extends SdkEventTypeDefinition {
   source: 'core' | 'plugin'
 }
 
@@ -33,7 +34,8 @@ const CORE_EVENT_TYPES: EventTypeDefinition[] = [
   {
     type: 'raw.created',
     domain: 'core',
-    description: 'Raw screen capture before any OCR/AI analysis. Emitted for each screenshot taken during context capture window.',
+    description:
+      'Raw screen capture before any OCR/AI analysis. Emitted for each screenshot taken during context capture window.',
     source: 'core'
   },
   {
@@ -406,15 +408,19 @@ export class PluginManager extends EventEmitter {
             this.aiEngine.generateCompletionStream(prompt, images)
         },
         ipc: {
-          handle: (channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown) => ipcMain.handle(channel, listener)
+          handle: (
+            channel: string,
+            listener: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+          ) => ipcMain.handle(channel, listener)
         },
         http: {
           router: router
         },
         database: this.databaseService,
         events: {
-          registerTypes: (definitions: EventTypeDefinition[]) => this.registerEventTypes(definitions),
-          getTypes: () => this.getEventTypes(),
+          registerTypes: (definitions: SdkEventTypeDefinition[]) =>
+            this.registerEventTypes(definitions.map((d) => ({ ...d, source: 'plugin' as const }))),
+          getTypes: () => this.getEventTypes() as SdkEventTypeDefinition[],
           emit: async (type: string, payload: Record<string, unknown>) => {
             await this.triggerEvent(type, payload, plugin.id)
           }
@@ -499,7 +505,9 @@ export class PluginManager extends EventEmitter {
       }))
   }
 
-  private normalizeEventTypeDefinition(definition: EventTypeDefinition): EventTypeDefinition | null {
+  private normalizeEventTypeDefinition(
+    definition: EventTypeDefinition
+  ): EventTypeDefinition | null {
     const type = (definition.type || '').trim()
     const description = (definition.description || '').trim()
 
@@ -543,15 +551,20 @@ export class PluginManager extends EventEmitter {
     }
   }
 
-  public getEventTypes(options?: { domain?: EventDomain; source?: 'core' | 'plugin' }): EventTypeDefinition[] {
-    let types = Array.from(this.eventTypeRegistry.values()).sort((a, b) => a.type.localeCompare(b.type))
+  public getEventTypes(options?: {
+    domain?: EventDomain
+    source?: 'core' | 'plugin'
+  }): EventTypeDefinition[] {
+    let types = Array.from(this.eventTypeRegistry.values()).sort((a, b) =>
+      a.type.localeCompare(b.type)
+    )
 
     if (options?.domain) {
-      types = types.filter(t => t.domain === options.domain)
+      types = types.filter((t) => t.domain === options.domain)
     }
 
     if (options?.source) {
-      types = types.filter(t => t.source === options.source)
+      types = types.filter((t) => t.source === options.source)
     }
 
     return types
@@ -634,11 +647,16 @@ export class PluginManager extends EventEmitter {
   ): Promise<void> {
     const definition = this.eventTypeRegistry.get(event)
 
-    console.log(`[PluginManager] triggerEvent called: ${event}, payload.sessionId: ${payload.sessionId}`)
+    console.log(
+      `[PluginManager] triggerEvent called: ${event}, payload.sessionId: ${payload.sessionId}`
+    )
 
     if (!definition) {
       console.warn(`[PluginManager] Skip unregistered event type: ${event}`)
-      console.log(`[PluginManager] Registered event types:`, Array.from(this.eventTypeRegistry.keys()))
+      console.log(
+        `[PluginManager] Registered event types:`,
+        Array.from(this.eventTypeRegistry.keys())
+      )
       return
     }
 
@@ -677,7 +695,9 @@ export class PluginManager extends EventEmitter {
             screenshotBuffer: buffer,
             screenshotPath: undefined // Remove path, only send buffer
           }
-          console.log(`[PluginManager] Converted screenshotPath to Buffer for plugin delivery: ${screenshotPath}`)
+          console.log(
+            `[PluginManager] Converted screenshotPath to Buffer for plugin delivery: ${screenshotPath}`
+          )
         }
       } catch (err) {
         console.error(`[PluginManager] Failed to read screenshot file: ${screenshotPath}`, err)
@@ -692,7 +712,7 @@ export class PluginManager extends EventEmitter {
       source
     }
 
-    const context = {
+    const context: EventDispatchContext = {
       envelope,
       eventTypes: this.getEventTypes()
     }
@@ -710,4 +730,3 @@ export class PluginManager extends EventEmitter {
     }
   }
 }
-

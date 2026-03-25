@@ -64,11 +64,17 @@ export interface PluginsAPI {
   openFileDialog: () => Promise<string | null>
 }
 
+export interface ShortcutAPI {
+  get: () => Promise<string>
+  set: (shortcut: string) => Promise<void>
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
   presentation: PresentationAPI
   settings: SettingsAPI
+  shortcut: ShortcutAPI
   plugins: PluginsAPI
 }
 

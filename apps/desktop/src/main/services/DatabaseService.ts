@@ -841,7 +841,9 @@ export class DatabaseService {
   }
   // ── App Settings (notification toggle, etc.) ──
 
-  async getAppSettings(userId: string): Promise<{ notificationsEnabled: boolean; quickCaptureShortcut?: string }> {
+  async getAppSettings(
+    userId: string
+  ): Promise<{ notificationsEnabled: boolean; quickCaptureShortcut?: string }> {
     const row = await this.get(
       'SELECT * FROM integration_configs WHERE user_id = ? AND provider = ?',
       [userId, 'app_settings']
@@ -869,10 +871,11 @@ export class DatabaseService {
       const r = row as Record<string, unknown>
       const existingSettings = JSON.parse(String(r.settings ?? '{}'))
       const mergedSettings = { ...existingSettings, ...settings }
-      await this.run(
-        'UPDATE integration_configs SET settings = ?, updated_at = ? WHERE id = ?',
-        [JSON.stringify(mergedSettings), now, String(r.id)]
-      )
+      await this.run('UPDATE integration_configs SET settings = ?, updated_at = ? WHERE id = ?', [
+        JSON.stringify(mergedSettings),
+        now,
+        String(r.id)
+      ])
     } else {
       const id = uuidv4()
       await this.run(
@@ -1101,14 +1104,16 @@ export class DatabaseService {
   }
 
   // Trigger Event operations
-  async getTriggerEvents(options: {
-    page?: number
-    pageSize?: number
-    eventType?: string
-    startDate?: string
-    endDate?: string
-    search?: string
-  } = {}): Promise<{
+  async getTriggerEvents(
+    options: {
+      page?: number
+      pageSize?: number
+      eventType?: string
+      startDate?: string
+      endDate?: string
+      search?: string
+    } = {}
+  ): Promise<{
     events: TriggerEvent[]
     total: number
     page: number
@@ -1199,14 +1204,16 @@ export class DatabaseService {
     }
 
     // 获取指定事件之后的最新事件
-    const sinceRow = await this.get('SELECT triggered_at FROM trigger_events WHERE id = ?', [sinceEventId])
+    const sinceRow = await this.get('SELECT triggered_at FROM trigger_events WHERE id = ?', [
+      sinceEventId
+    ])
     if (!sinceRow) {
       return []
     }
 
     const rows = await this.all(
       'SELECT * FROM trigger_events WHERE triggered_at > ? ORDER BY triggered_at DESC LIMIT ?',
-      [(sinceRow as Record<string, unknown>).triggered_at, limit]
+      [(sinceRow as Record<string, unknown>).triggered_at as string, limit]
     )
 
     return rows.map((row) => {

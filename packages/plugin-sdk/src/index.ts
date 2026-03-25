@@ -61,7 +61,7 @@ export interface Screenshot {
   capturedAt: string;
 }
 
-export type EventDomain = "knowledge" | "information" | "system";
+export type EventDomain = "core" | "knowledge" | "information" | "system";
 
 export interface EventTypeDefinition {
   type: string;

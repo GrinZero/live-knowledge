@@ -37,14 +37,12 @@ function getCallerInfo(): { isPlugin: boolean; moduleName: string } {
  * 格式化日志消息，添加颜色前缀
  */
 function formatMessage(
-  type: 'log' | 'warn' | 'error',
+  _type: 'log' | 'warn' | 'error',
   isPlugin: boolean,
   moduleName: string,
   args: unknown[]
 ): unknown[] {
-  const prefix = isPlugin
-    ? chalk.magenta(`[Plugin:${moduleName}]`)
-    : chalk.blue('[Core]')
+  const prefix = isPlugin ? chalk.magenta(`[Plugin:${moduleName}]`) : chalk.blue('[Core]')
 
   return [prefix, ...args]
 }

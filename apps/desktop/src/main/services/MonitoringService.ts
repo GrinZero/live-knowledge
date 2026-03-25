@@ -255,7 +255,9 @@ export class MonitoringService extends EventEmitter {
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
         if (msg.includes('Screen recording permission denied')) {
-          console.warn('Screen recording permission denied. Monitoring paused — grant permission and restart.')
+          console.warn(
+            'Screen recording permission denied. Monitoring paused — grant permission and restart.'
+          )
           return // Stop the loop instead of spamming logs
         }
         console.error('Error during screen check:', error)
@@ -665,25 +667,6 @@ export class MonitoringService extends EventEmitter {
     })
   }
 
-  private async createTriggerEvent(
-    eventType: string,
-    content: Record<string, unknown>
-  ): Promise<void> {
-    const confidence =
-      Array.isArray((content as { tags?: Array<{ confidence?: number }> }).tags) &&
-      typeof (content as { tags?: Array<{ confidence?: number }> }).tags![0]?.confidence ===
-        'number'
-        ? ((content as { tags?: Array<{ confidence?: number }> }).tags![0]!.confidence as number)
-        : 0.5
-
-    await this.database.createTriggerEvent({
-      sessionId: this.currentSession!.id,
-      eventType,
-      content,
-      confidence
-    })
-  }
-
   private async buildContext(): Promise<ContextWindow> {
     // Get recent knowledge items for context
     const recentItems = await this.database.getKnowledgeItemsByUser(this.userId, 5)
@@ -822,7 +805,11 @@ export class MonitoringService extends EventEmitter {
           userId: this.userId,
           startedAt: new Date().toISOString(),
           status: 'active',
-          config: { mode: 'full', language: 'zh' },
+          config: {
+            mode: 'full',
+            language: 'zh',
+            triggerConfig: { debounce: 1000, throttle: 5000, similarityThreshold: 0.95 }
+          },
           createdAt: new Date().toISOString()
         }
         this.currentSession = session

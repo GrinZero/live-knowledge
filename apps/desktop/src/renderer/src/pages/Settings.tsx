@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Save, Bot, RefreshCw, AlertCircle, Settings2, Zap, Link2, Palette, BellOff, Bell, Activity } from 'lucide-react'
+import {
+  Save,
+  Bot,
+  RefreshCw,
+  AlertCircle,
+  Settings2,
+  Zap,
+  Link2,
+  Palette,
+  BellOff,
+  Bell,
+  Activity
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '../lib/api-client'
 import { cn } from '@/lib/utils'
@@ -31,7 +43,7 @@ export default function Settings(): React.JSX.Element {
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [quickCaptureShortcut, setQuickCaptureShortcut] = useState('CommandOrControl+Shift+S')
-  const [isCapturingShortcut, setIsCapturingShortcut] = useState(false)
+  const [isCapturingShortcut, _setIsCapturingShortcut] = useState(false)
   const [eventTypes, setEventTypes] = useState<EventType[]>([])
   const [eventFilter, setEventFilter] = useState<'all' | 'core' | 'plugin'>('all')
 
@@ -337,9 +349,7 @@ export default function Settings(): React.JSX.Element {
                       <div>
                         <p className="text-sm font-medium text-gray-900">系统通知</p>
                         <p className="text-xs text-gray-500">
-                          {notificationsEnabled
-                            ? '洞察生成时会推送系统通知'
-                            : '已关闭所有系统通知'}
+                          {notificationsEnabled ? '洞察生成时会推送系统通知' : '已关闭所有系统通知'}
                         </p>
                       </div>
                     </div>
@@ -544,7 +554,9 @@ export default function Settings(): React.JSX.Element {
                     onClick={() => setEventFilter('all')}
                     className={cn(
                       'px-3 py-1.5 text-sm rounded-lg transition-all',
-                      eventFilter === 'all' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                      eventFilter === 'all'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50'
                     )}
                   >
                     全部 ({eventTypes.length})
@@ -553,39 +565,45 @@ export default function Settings(): React.JSX.Element {
                     onClick={() => setEventFilter('core')}
                     className={cn(
                       'px-3 py-1.5 text-sm rounded-lg transition-all',
-                      eventFilter === 'core' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                      eventFilter === 'core'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50'
                     )}
                   >
-                    核心事件 ({eventTypes.filter(t => t.source === 'core').length})
+                    核心事件 ({eventTypes.filter((t) => t.source === 'core').length})
                   </button>
                   <button
                     onClick={() => setEventFilter('plugin')}
                     className={cn(
                       'px-3 py-1.5 text-sm rounded-lg transition-all',
-                      eventFilter === 'plugin' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+                      eventFilter === 'plugin'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50'
                     )}
                   >
-                    插件事件 ({eventTypes.filter(t => t.source === 'plugin').length})
+                    插件事件 ({eventTypes.filter((t) => t.source === 'plugin').length})
                   </button>
                 </div>
 
                 {/* Event List */}
                 <div className="space-y-3">
                   {eventTypes
-                    .filter(t => eventFilter === 'all' || t.source === eventFilter)
+                    .filter((t) => eventFilter === 'all' || t.source === eventFilter)
                     .map((event) => (
                       <div key={event.type} className="p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3 mb-2">
                           <code className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded">
                             {event.type}
                           </code>
-                          <span className={cn(
-                            'px-2 py-0.5 text-xs rounded',
-                            event.domain === 'knowledge' && 'bg-green-100 text-green-700',
-                            event.domain === 'information' && 'bg-purple-100 text-purple-700',
-                            event.domain === 'core' && 'bg-gray-200 text-gray-700',
-                            event.domain === 'system' && 'bg-red-100 text-red-700'
-                          )}>
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 text-xs rounded',
+                              event.domain === 'knowledge' && 'bg-green-100 text-green-700',
+                              event.domain === 'information' && 'bg-purple-100 text-purple-700',
+                              event.domain === 'core' && 'bg-gray-200 text-gray-700',
+                              event.domain === 'system' && 'bg-red-100 text-red-700'
+                            )}
+                          >
                             {event.domain}
                           </span>
                           <span className="text-xs text-gray-400">

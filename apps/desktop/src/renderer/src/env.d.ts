@@ -113,6 +113,10 @@ declare global {
         uninstall: (id: string) => Promise<boolean>
         openFileDialog: () => Promise<string | null>
       }
+      shortcut: {
+        get: () => Promise<string>
+        set: (shortcut: string) => Promise<void>
+      }
     }
   }
 }

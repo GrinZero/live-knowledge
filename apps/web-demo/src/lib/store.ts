@@ -24,6 +24,7 @@ export interface WebhookEventRecord {
   }
 }
 
+const MAX_RECORDS = 300
 const dataDir = path.join(process.cwd(), 'data')
 const eventsFile = path.join(dataDir, 'events.json')
 let writeQueue: Promise<void> = Promise.resolve()
@@ -31,7 +32,12 @@ let writeQueue: Promise<void> = Promise.resolve()
 async function ensureStore(): Promise<void> {
   await mkdir(dataDir, { recursive: true })
   try {
-    await readFile(eventsFile, 'utf8')
+    const content = await readFile(eventsFile, 'utf8')
+    if (!content.trim()) {
+      await writeFile(eventsFile, '[]', 'utf8')
+      return
+    }
+    JSON.parse(content) // Validate JSON
   } catch {
     await writeFile(eventsFile, '[]', 'utf8')
   }
@@ -43,11 +49,24 @@ export async function loadEvents(): Promise<WebhookEventRecord[]> {
   return JSON.parse(content) as WebhookEventRecord[]
 }
 
+function sanitizePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = { ...payload }
+  // Remove any Buffer-like objects that shouldn't be persisted
+  delete cleaned.screenshotBuffer
+  delete cleaned.screenshotPath
+  return cleaned
+}
+
 export async function saveEvent(record: WebhookEventRecord): Promise<void> {
   writeQueue = writeQueue.then(async () => {
     const records = await loadEvents()
-    records.unshift(record)
-    await writeFile(eventsFile, JSON.stringify(records.slice(0, 300), null, 2), 'utf8')
+    records.unshift({
+      ...record,
+      payload: sanitizePayload(record.payload),
+    })
+    await writeFile(eventsFile, JSON.stringify(records.slice(0, MAX_RECORDS), null, 2), 'utf8')
+  }).catch((err) => {
+    console.error('[store] saveEvent failed:', err)
   })
 
   await writeQueue
@@ -72,7 +91,9 @@ export async function updateEventAnalysis(
       },
     }
 
-    await writeFile(eventsFile, JSON.stringify(records, null, 2), 'utf8')
+    await writeFile(eventsFile, JSON.stringify(records.slice(0, MAX_RECORDS), null, 2), 'utf8')
+  }).catch((err) => {
+    console.error('[store] updateEventAnalysis failed:', err)
   })
 
   await writeQueue

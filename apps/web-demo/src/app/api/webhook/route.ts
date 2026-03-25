@@ -3,6 +3,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { analyzeWithAI } from '@/lib/ai'
+
+// Allow large request bodies for screenshot buffers
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 import { convertWithMarkItDown } from '@/lib/markitdown'
 import type { DetectedType } from '@/lib/store'
 import { saveEvent, updateEventAnalysis } from '@/lib/store'
@@ -137,9 +141,12 @@ export async function POST(req: NextRequest) {
 
     payload = body.payload || {}
 
-    // Handle screenshotBuffer from PluginManager (serialized as { type: 'Buffer', data: [...] })
-    if (body.screenshotBuffer) {
-      const buf = body.screenshotBuffer
+    // Handle screenshotBuffer - it may be at body level or nested inside payload
+    // (webhook plugin wraps everything in an envelope where payload contains the original data)
+    const rawScreenshotBuffer = body.screenshotBuffer
+      || (payload as Record<string, unknown>).screenshotBuffer
+    if (rawScreenshotBuffer) {
+      const buf = rawScreenshotBuffer as Buffer | { type: 'Buffer'; data: number[] }
       if (typeof buf === 'object' && 'type' in buf && buf.type === 'Buffer' && Array.isArray(buf.data)) {
         screenshotBuffer = Buffer.from(buf.data)
       } else if (Buffer.isBuffer(buf)) {
@@ -152,9 +159,10 @@ export async function POST(req: NextRequest) {
         const filename = `${Date.now()}-screenshot.png`
         await writeFile(path.join(uploadDir, filename), screenshotBuffer)
         attachments.push(`/uploads/${id}/${filename}`)
-        // Remove screenshotPath from payload if present
-        if (payload && typeof payload === 'object' && 'screenshotPath' in payload) {
+        // Remove screenshotPath and screenshotBuffer from payload to avoid storing raw data
+        if (payload && typeof payload === 'object') {
           delete (payload as Record<string, unknown>).screenshotPath
+          delete (payload as Record<string, unknown>).screenshotBuffer
         }
       }
     }

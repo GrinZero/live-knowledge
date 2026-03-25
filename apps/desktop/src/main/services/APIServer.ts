@@ -433,73 +433,61 @@ export class APIServer {
       }
     )
 
-    this.app.get(
-      '/api/settings/app',
-      async (_req: express.Request, res: express.Response) => {
-        try {
-          const settings = await this.databaseService.getAppSettings('default_user')
-          res.json(settings)
-        } catch (error) {
-          res
-            .status(500)
-            .json({ error: 'Failed to get app settings', message: (error as Error).message })
-        }
+    this.app.get('/api/settings/app', async (_req: express.Request, res: express.Response) => {
+      try {
+        const settings = await this.databaseService.getAppSettings('default_user')
+        res.json(settings)
+      } catch (error) {
+        res
+          .status(500)
+          .json({ error: 'Failed to get app settings', message: (error as Error).message })
       }
-    )
+    })
 
-    this.app.post(
-      '/api/settings/app',
-      async (req: express.Request, res: express.Response) => {
-        try {
-          const settings = req.body
-          await this.databaseService.saveAppSettings('default_user', settings)
+    this.app.post('/api/settings/app', async (req: express.Request, res: express.Response) => {
+      try {
+        const settings = req.body
+        await this.databaseService.saveAppSettings('default_user', settings)
 
-          // Sync to running PresentationService
-          if (this.presentationService) {
-            this.presentationService.setNotificationsEnabled(settings.notificationsEnabled !== false)
-          }
-          res.json({ success: true })
-        } catch (error) {
-          res
-            .status(400)
-            .json({ error: 'Failed to save app settings', message: (error as Error).message })
+        // Sync to running PresentationService
+        if (this.presentationService) {
+          this.presentationService.setNotificationsEnabled(settings.notificationsEnabled !== false)
         }
+        res.json({ success: true })
+      } catch (error) {
+        res
+          .status(400)
+          .json({ error: 'Failed to save app settings', message: (error as Error).message })
       }
-    )
+    })
 
     // Shortcut settings routes
-    this.app.get(
-      '/api/settings/shortcut',
-      async (_req: express.Request, res: express.Response) => {
-        try {
-          const settings = await this.databaseService.getAppSettings('default_user')
-          res.json({ shortcut: settings.quickCaptureShortcut || 'CommandOrControl+Shift+S' })
-        } catch (error) {
-          res
-            .status(500)
-            .json({ error: 'Failed to get shortcut', message: (error as Error).message })
-        }
+    this.app.get('/api/settings/shortcut', async (_req: express.Request, res: express.Response) => {
+      try {
+        const settings = await this.databaseService.getAppSettings('default_user')
+        res.json({ shortcut: settings.quickCaptureShortcut || 'CommandOrControl+Shift+S' })
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get shortcut', message: (error as Error).message })
       }
-    )
+    })
 
-    this.app.post(
-      '/api/settings/shortcut',
-      async (req: express.Request, res: express.Response) => {
-        try {
-          const { shortcut } = req.body
-          if (!shortcut || shortcut.trim() === '') {
-            res.status(400).json({ error: 'Shortcut cannot be empty' })
-            return
-          }
-          await this.databaseService.saveAppSettings('default_user', { quickCaptureShortcut: shortcut })
-          res.json({ success: true })
-        } catch (error) {
-          res
-            .status(400)
-            .json({ error: 'Failed to save shortcut', message: (error as Error).message })
+    this.app.post('/api/settings/shortcut', async (req: express.Request, res: express.Response) => {
+      try {
+        const { shortcut } = req.body
+        if (!shortcut || shortcut.trim() === '') {
+          res.status(400).json({ error: 'Shortcut cannot be empty' })
+          return
         }
+        await this.databaseService.saveAppSettings('default_user', {
+          quickCaptureShortcut: shortcut
+        })
+        res.json({ success: true })
+      } catch (error) {
+        res
+          .status(400)
+          .json({ error: 'Failed to save shortcut', message: (error as Error).message })
       }
-    )
+    })
   }
 
   private setupPluginRoutes(): void {
@@ -575,7 +563,9 @@ export class APIServer {
           types
         })
       } catch (error) {
-        res.status(500).json({ error: 'Failed to get event types', message: (error as Error).message })
+        res
+          .status(500)
+          .json({ error: 'Failed to get event types', message: (error as Error).message })
       }
     })
 
@@ -588,7 +578,9 @@ export class APIServer {
         }
         res.json(eventType)
       } catch (error) {
-        res.status(500).json({ error: 'Failed to get event type', message: (error as Error).message })
+        res
+          .status(500)
+          .json({ error: 'Failed to get event type', message: (error as Error).message })
       }
     })
 
@@ -627,7 +619,7 @@ export class APIServer {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'X-Accel-Buffering': 'no'
       })
 
@@ -643,7 +635,9 @@ export class APIServer {
           this.sseClients.set(clientId, { res, lastEventId: events[0].id })
         }
       } catch (error) {
-        res.write(`data: ${JSON.stringify({ type: 'error', message: (error as Error).message })}\n\n`)
+        res.write(
+          `data: ${JSON.stringify({ type: 'error', message: (error as Error).message })}\n\n`
+        )
       }
 
       // 启动轮询（如果还没启动）
@@ -668,16 +662,20 @@ export class APIServer {
 
       for (const [clientId, client] of this.sseClients) {
         try {
-          const events = await this.databaseService.getLatestEventsSince(client.lastEventId || undefined)
+          const events = await this.databaseService.getLatestEventsSince(
+            client.lastEventId || undefined
+          )
           if (events.length > 0) {
             // 过滤掉已经在 lastEventId 之前的
             const newEvents = client.lastEventId
-              ? events.filter(e => e.id !== client.lastEventId)
+              ? events.filter((e) => e.id !== client.lastEventId)
               : events
 
             if (newEvents.length > 0) {
               const processedEvents = this.processEventScreenshots(newEvents)
-              client.res.write(`data: ${JSON.stringify({ type: 'update', events: processedEvents })}\n\n`)
+              client.res.write(
+                `data: ${JSON.stringify({ type: 'update', events: processedEvents })}\n\n`
+              )
               client.lastEventId = newEvents[0].id
             }
           }
@@ -696,7 +694,9 @@ export class APIServer {
   }
 
   // 处理事件中的截图路径：读取文件转 base64 字符串
-  private processEventScreenshots(events: TriggerEvent[]): Array<TriggerEvent & { screenshotBase64?: string }> {
+  private processEventScreenshots(
+    events: TriggerEvent[]
+  ): Array<TriggerEvent & { screenshotBase64?: string }> {
     return events.map((event) => {
       const eventData: Record<string, unknown> = { ...event }
       if (event.content?.screenshotPath) {
@@ -713,7 +713,7 @@ export class APIServer {
           console.error(`[APIServer] Failed to read screenshot: ${screenshotPath}`, err)
         }
       }
-      return eventData as TriggerEvent & { screenshotBase64?: string }
+      return eventData as unknown as TriggerEvent & { screenshotBase64?: string }
     })
   }
 
