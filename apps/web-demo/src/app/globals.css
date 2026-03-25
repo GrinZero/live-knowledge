@@ -342,7 +342,8 @@ details > summary {
     font-size: 30px;
   }
 
-  .grid {
+  .grid,
+  .grid.stream-collapsed {
     grid-template-columns: 1fr;
   }
 
