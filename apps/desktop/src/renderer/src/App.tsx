@@ -13,6 +13,7 @@ import { getPluginRoutes, subscribeToPluginUpdates } from './plugin-registry'
 import { initializePlugins } from './plugins'
 import { PluginErrorBoundary } from './components/PluginErrorBoundary'
 import { PluginPageLayout } from './components/PluginPageLayout'
+import { PrivacyOverlay } from './components/PrivacyOverlay'
 import { useEffect, useState } from 'react'
 
 // Initialize plugins before rendering
@@ -32,6 +33,8 @@ function App(): React.JSX.Element {
   const pageRoutes = pluginRoutes.filter((r) => r.layout === 'page')
 
   return (
+    <>
+    <PrivacyOverlay />
     <Routes>
       {/* Full Page Plugin Routes (Standalone with Back Button) */}
       {pageRoutes.map((route) => (
@@ -79,6 +82,7 @@ function App(): React.JSX.Element {
         }
       />
     </Routes>
+    </>
   )
 }
 
