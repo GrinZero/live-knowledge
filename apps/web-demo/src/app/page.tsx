@@ -48,7 +48,7 @@ function ExitFocusIcon() {
 
 function RefreshIcon() {
   return (
-    <svg className="icon" viewBox="0 0 20 20" fill="none" aria-hidden>
+    <svg className="icon refresh-icon" viewBox="0 0 20 20" fill="none" aria-hidden>
       <path
         d="M16.5 10A6.5 6.5 0 1 1 14 5.03M16.5 4.5v3.75h-3.75"
         stroke="currentColor"
@@ -76,12 +76,24 @@ function TrashIcon() {
 
 function AnalysisStatus({ analysis }: { analysis: EventRecord['analysis'] }) {
   if (!analysis) {
-    return <span className="status-badge pending">pending</span>
+    return (
+      <span className="status-badge pending" role="status" aria-label="分析中">
+        pending
+      </span>
+    )
   }
   if ('error' in analysis) {
-    return <span className="status-badge error" title={analysis.error}>error</span>
+    return (
+      <span className="status-badge error" title={analysis.error} role="status" aria-label="分析错误">
+        error
+      </span>
+    )
   }
-  return <span className="status-badge completed">completed</span>
+  return (
+    <span className="status-badge completed" role="status" aria-label="分析完成">
+      completed
+    </span>
+  )
 }
 
 export default function HomePage() {
@@ -90,11 +102,13 @@ export default function HomePage() {
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
   const [eventListCollapsed, setEventListCollapsed] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const latestIdRef = useRef<string>('')
 
   const selectedEvent = events.find((item) => item.id === selectedId) || events[0]
 
   const fetchEvents = async () => {
+    setIsRefreshing(true)
     const response = await fetch('/api/events', { cache: 'no-store' })
     const data = (await response.json()) as { events: EventRecord[] }
     const list = data.events || []
@@ -103,6 +117,7 @@ export default function HomePage() {
     const previousLatest = latestIdRef.current
 
     setEvents(list)
+    setIsRefreshing(false)
 
     if (!latestIncoming) return
 
@@ -142,7 +157,12 @@ export default function HomePage() {
   return (
     <main className={`container ${focusMode ? 'focus-mode' : ''}`}>
       <div className="top-bar">
-        <button className="icon-button focus-btn" onClick={() => setFocusMode((v) => !v)} title={focusMode ? '退出专注模式' : '专注模式'}>
+        <button
+          className="icon-button focus-btn"
+          onClick={() => setFocusMode((v) => !v)}
+          title={focusMode ? '退出专注模式' : '专注模式'}
+          aria-label={focusMode ? '退出专注模式' : '进入专注模式'}
+        >
           {focusMode ? <ExitFocusIcon /> : <FocusIcon />}
         </button>
       </div>
@@ -153,7 +173,12 @@ export default function HomePage() {
             <p className="eyebrow">LIVE KNOWLEDGE</p>
             <h1>Event Feed</h1>
           </div>
-          <button className="icon-button" onClick={() => setHeaderCollapsed((v) => !v)}>
+          <button
+            className="icon-button"
+            onClick={() => setHeaderCollapsed((v) => !v)}
+            aria-label={headerCollapsed ? '展开头部' : '折叠头部'}
+            aria-expanded={!headerCollapsed}
+          >
             <ChevronIcon collapsed={headerCollapsed} />
           </button>
         </div>
@@ -177,16 +202,29 @@ export default function HomePage() {
           <div className="panel-header">
             <h3>事件列表</h3>
             <div className="panel-actions">
-              <button className="icon-button" onClick={clearEvents} title="清除所有记录">
+              <button
+                className="icon-button"
+                onClick={clearEvents}
+                title="清除所有记录"
+                aria-label="清除所有记录"
+              >
                 <TrashIcon />
               </button>
-              <button className="icon-button" onClick={fetchEvents} title="刷新">
+              <button
+                className={`icon-button ${isRefreshing ? 'is-refreshing' : ''}`}
+                onClick={fetchEvents}
+                title="刷新"
+                aria-label="刷新事件列表"
+                disabled={isRefreshing}
+              >
                 <RefreshIcon />
               </button>
               <button
                 className="icon-button"
                 onClick={() => setEventListCollapsed((v) => !v)}
                 title={eventListCollapsed ? '展开' : '折叠'}
+                aria-label={eventListCollapsed ? '展开列表' : '折叠列表'}
+                aria-expanded={!eventListCollapsed}
               >
                 <ChevronIcon collapsed={eventListCollapsed} />
               </button>

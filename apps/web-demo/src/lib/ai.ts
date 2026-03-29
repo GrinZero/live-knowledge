@@ -18,7 +18,8 @@ export async function analyzeEvent(
       ? payload.screenshotBase64
       : undefined;
 
-  const { screenshotBase64: _, ...senPayload } = payload;
+  const { screenshotBase64: _unused, ...senPayload } = payload;
+  console.debug('Screenshot removed from payload', !!_unused);
 
   const contextText = `你是一个屏幕内容分析助手。以下是一条 raw.created 事件的 payload 数据，请分析屏幕内容并给出结构化建议。\n\n事件数据:\n${JSON.stringify(senPayload, null, 2)}
   

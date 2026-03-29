@@ -209,6 +209,26 @@ body {
   transform: rotate(-90deg);
 }
 
+.is-refreshing .refresh-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-button:focus-visible,
+.event-item:focus-visible,
+details summary:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
+
 .events-list {
   margin-top: 12px;
   display: flex;
