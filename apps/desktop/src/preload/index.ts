@@ -69,6 +69,16 @@ const api = {
     set: (shortcut: string) => ipcRenderer.invoke('shortcut:set', shortcut)
   },
 
+  // Window APIs
+  window: {
+    onBlur: (callback: () => void) => {
+      ipcRenderer.on('window:blur', () => callback())
+    },
+    onFocus: (callback: () => void) => {
+      ipcRenderer.on('window:focus', () => callback())
+    }
+  },
+
   // Plugin APIs
   plugins: {
     list: () => ipcRenderer.invoke('plugins:list'),

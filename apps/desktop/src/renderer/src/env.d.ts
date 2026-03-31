@@ -117,6 +117,10 @@ declare global {
         get: () => Promise<string>
         set: (shortcut: string) => Promise<void>
       }
+      window: {
+        onBlur: (callback: () => void) => void
+        onFocus: (callback: () => void) => void
+      }
     }
   }
 }
