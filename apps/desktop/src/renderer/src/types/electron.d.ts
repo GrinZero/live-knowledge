@@ -69,12 +69,18 @@ export interface ShortcutAPI {
   set: (shortcut: string) => Promise<void>
 }
 
+export interface WindowAPI {
+  onBlur: (callback: () => void) => void
+  onFocus: (callback: () => void) => void
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
   presentation: PresentationAPI
   settings: SettingsAPI
   shortcut: ShortcutAPI
+  window: WindowAPI
   plugins: PluginsAPI
 }
 

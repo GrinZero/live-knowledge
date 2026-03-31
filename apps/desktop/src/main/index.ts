@@ -130,6 +130,14 @@ function createWindow(): BrowserWindow {
     refreshTrayMenu?.()
   })
 
+  mainWindow.on('blur', () => {
+    mainWindow?.webContents.send('window:blur')
+  })
+
+  mainWindow.on('focus', () => {
+    mainWindow?.webContents.send('window:focus')
+  })
+
   mainWindow.on('hide', () => {
     // macOS: 窗口隐藏到托盘时隐藏 Dock 图标
     if (process.platform === 'darwin' && app.dock) {
