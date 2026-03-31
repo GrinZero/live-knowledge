@@ -10,7 +10,8 @@ import {
   Palette,
   BellOff,
   Bell,
-  Activity
+  Activity,
+  FileText
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '../lib/api-client'
@@ -172,6 +173,30 @@ export default function Settings(): React.JSX.Element {
       console.error('Failed to save notification setting:', error)
       setNotificationsEnabled(!enabled)
       toast.error('保存通知设置失败')
+    }
+  }
+
+  const handleExportLogs = async () => {
+    try {
+      const result = await window.api.logs.export()
+      if (result.success) {
+        // 创建下载链接
+        const blob = new Blob([result.content], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `live-knowledge-logs-${new Date().toISOString().slice(0, 10)}.log`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('日志已导出')
+      } else {
+        toast.error('导出日志失败: ' + result.error)
+      }
+    } catch (error) {
+      console.error('Failed to export logs:', error)
+      toast.error('导出日志失败')
     }
   }
 
@@ -368,6 +393,27 @@ export default function Settings(): React.JSX.Element {
                           notificationsEnabled ? 'translate-x-6' : 'translate-x-1'
                         )}
                       />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 导出日志 */}
+                <div className="border-t border-gray-100 pt-6">
+                  <h2 className="text-base font-medium text-gray-900 mb-4">日志</h2>
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">导出日志</p>
+                        <p className="text-xs text-gray-500">导出最近的应用日志用于排查问题</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleExportLogs}
+                      className="flex items-center gap-2 h-9 px-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all"
+                    >
+                      <FileText className="w-4 h-4" />
+                      导出
                     </button>
                   </div>
                 </div>

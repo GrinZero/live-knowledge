@@ -112,6 +112,7 @@ declare global {
         install: (path: string) => Promise<boolean>
         uninstall: (id: string) => Promise<boolean>
         openFileDialog: () => Promise<string | null>
+        invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
       }
       shortcut: {
         get: () => Promise<string>

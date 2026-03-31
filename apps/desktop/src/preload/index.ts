@@ -86,7 +86,14 @@ const api = {
     toggle: (id: string, enabled: boolean) => ipcRenderer.invoke('plugins:toggle', id, enabled),
     install: (path: string) => ipcRenderer.invoke('plugins:install', path),
     uninstall: (id: string) => ipcRenderer.invoke('plugins:uninstall', id),
-    openFileDialog: () => ipcRenderer.invoke('dialog:openFile')
+    openFileDialog: () => ipcRenderer.invoke('dialog:openFile'),
+    // Plugin-specific IPC calls
+    invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+  },
+
+  // Logs APIs
+  logs: {
+    export: () => ipcRenderer.invoke('logs:export')
   }
 }
 

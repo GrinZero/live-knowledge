@@ -9,6 +9,17 @@ interface WebhookEndpoint {
   events: string[];
 }
 
+export interface WebhookLogEntry {
+  id: string;
+  url: string;
+  event: string;
+  status: 'success' | 'failed';
+  statusCode?: number;
+  error?: string;
+  timestamp: string;
+  requestBody?: Record<string, unknown>;
+}
+
 export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
@@ -51,8 +62,36 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
   private context: PluginContext | null = null;
 
+  private webhookLogs: WebhookLogEntry[] = [];
+
+  private maxLogs = 100;
+
+  private addLog(entry: Omit<WebhookLogEntry, 'id' | 'timestamp'>): void {
+    const log: WebhookLogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      ...entry,
+    };
+    this.webhookLogs.push(log);
+    // Keep only last maxLogs entries
+    if (this.webhookLogs.length > this.maxLogs) {
+      this.webhookLogs = this.webhookLogs.slice(-this.maxLogs);
+    }
+  }
+
   initialize(context: PluginContext) {
     this.context = context;
+
+    // Register IPC handler for webhook logs
+    context.ipc.handle('webhook-plugin:getLogs', async () => {
+      return this.webhookLogs.slice().reverse();
+    });
+
+    context.ipc.handle('webhook-plugin:clearLogs', async () => {
+      this.webhookLogs = [];
+      return true;
+    });
+
     context.events.registerTypes([
       {
         type: "webhook.delivered",
@@ -135,6 +174,15 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
             body: JSON.stringify(body),
           });
 
+          // Log success
+          this.addLog({
+            url: endpoint.url,
+            event,
+            status: "success",
+            statusCode: response.status,
+            requestBody: body,
+          });
+
           if (this.context) {
             await this.context.events.emit("webhook.delivered", {
               url: endpoint.url,
@@ -143,11 +191,36 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
             });
           }
         } catch (error) {
+          let errorMessage = error instanceof Error ? error.message : String(error);
+
+          // 尝试获取更详细的错误信息
+          if (error instanceof TypeError && error.cause) {
+            const cause = error.cause;
+            if (cause instanceof Error) {
+              errorMessage = `${errorMessage} (cause: ${cause.message})`;
+            } else if (typeof cause === 'object' && cause !== null) {
+              // 尝试获取 syscall、code 等信息
+              const causeObj = cause as Record<string, unknown>;
+              if (causeObj.code) errorMessage = `${errorMessage} [${causeObj.code}]`;
+              if (causeObj.syscall) errorMessage = `${errorMessage} (syscall: ${causeObj.syscall})`;
+              if (causeObj.hostname) errorMessage = `${errorMessage} (hostname: ${causeObj.hostname})`;
+            }
+          }
+
+          // Log failure
+          this.addLog({
+            url: endpoint.url,
+            event,
+            status: "failed",
+            error: errorMessage,
+            requestBody: body,
+          });
+
           if (this.context) {
             await this.context.events.emit("webhook.delivery_failed", {
               url: endpoint.url,
               event,
-              error: error instanceof Error ? error.message : String(error),
+              error: errorMessage,
             });
           }
         }

@@ -14,7 +14,10 @@
       "Bash(pnpm:*)",
       "Bash(curl -s http://localhost:3000/api/events)",
       "Bash(curl -s http://localhost:3000/api/events/types)",
-      "Bash(openspec new:*)"
+      "Bash(openspec new:*)",
+      "Bash(npm run:*)",
+      "Bash(find /Users/bugyaluwang/project/live-knowledge/apps/desktop/out -name *.app -type d)",
+      "Bash(ls:*)"
     ]
   }
 }

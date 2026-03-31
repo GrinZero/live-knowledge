@@ -9,3 +9,5 @@ out-smoke
 *.db
 .turbo
 *.tgz
+
+settings.local.json

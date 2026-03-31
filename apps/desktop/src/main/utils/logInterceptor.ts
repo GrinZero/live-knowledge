@@ -1,14 +1,31 @@
 /**
- * 日志拦截器 - 为核心代码和插件日志自动添加颜色前缀
- * 核心代码: 蓝色 [Core]
- * 插件代码: 洋红色 [Plugin:xxx]
+ * 日志拦截器 - 使用 electron-log 将日志写入文件
+ * 核心代码: [Core]
+ * 插件代码: [Plugin:xxx]
+ *
+ * 打包后日志文件位置:
+ * - macOS: ~/Library/Logs/live-knowledge-app/
+ * - Windows: %USERPROFILE%\AppData\Roaming\live-knowledge-app\logs\
+ * - Linux: ~/.config/live-knowledge-app/logs/
  */
+import log from 'electron-log'
 import chalk from 'chalk'
+import { app } from 'electron'
+import { join } from 'path'
 
-// 保存原始 console 方法
-const originalLog = console.log
-const originalWarn = console.warn
-const originalError = console.error
+// electron-log v5 配置
+const logDir = join(app.getPath('home'), 'Library/Logs/live-knowledge-app')
+const logFile = join(logDir, 'main.log')
+
+log.transports.file.resolvePathFn = () => logFile
+log.transports.file.level = 'debug'
+log.transports.console.level = 'debug'
+
+// 日志文件最大 5MB，保留 3 个旧文件
+log.transports.file.maxSize = 5 * 1024 * 1024
+
+// 自定义格式化，添加颜色前缀（仅控制台）
+log.transports.console.format = '{y} {h}{m}{s}{r} [{level}] {text}'
 
 // 插件路径关键字
 const PLUGIN_PATHS = ['plugins/']
@@ -34,33 +51,64 @@ function getCallerInfo(): { isPlugin: boolean; moduleName: string } {
 }
 
 /**
- * 格式化日志消息，添加颜色前缀
+ * 获取带颜色的前缀
  */
-function formatMessage(
-  _type: 'log' | 'warn' | 'error',
-  isPlugin: boolean,
-  moduleName: string,
-  args: unknown[]
-): unknown[] {
-  const prefix = isPlugin ? chalk.magenta(`[Plugin:${moduleName}]`) : chalk.blue('[Core]')
-
-  return [prefix, ...args]
+function getPrefix(isPlugin: boolean, moduleName: string): string {
+  return isPlugin ? chalk.magenta(`[Plugin:${moduleName}]`) : chalk.blue('[Core]')
 }
+
+// 保存原始方法用于避免递归
+const originalLog = console.log
+const originalWarn = console.warn
+const originalError = console.error
 
 // 拦截 console.log
 console.log = (...args: unknown[]) => {
   const { isPlugin, moduleName } = getCallerInfo()
-  originalLog.apply(console, formatMessage('log', isPlugin, moduleName, args))
+  const prefix = getPrefix(isPlugin, moduleName)
+
+  // electron-log 写入文件
+  const message = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')
+  log.info(`${isPlugin ? `[Plugin:${moduleName}]` : '[Core]'} ${message}`)
+
+  // 保留原始控制台输出（带颜色）
+  originalLog.apply(console, [prefix, ...args])
 }
 
 // 拦截 console.warn
 console.warn = (...args: unknown[]) => {
   const { isPlugin, moduleName } = getCallerInfo()
-  originalWarn.apply(console, formatMessage('warn', isPlugin, moduleName, args))
+  const prefix = getPrefix(isPlugin, moduleName)
+
+  const message = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')
+  log.warn(`${isPlugin ? `[Plugin:${moduleName}]` : '[Core]'} ${message}`)
+
+  originalWarn.apply(console, [prefix, ...args])
 }
 
 // 拦截 console.error
 console.error = (...args: unknown[]) => {
   const { isPlugin, moduleName } = getCallerInfo()
-  originalError.apply(console, formatMessage('error', isPlugin, moduleName, args))
+  const prefix = getPrefix(isPlugin, moduleName)
+
+  const message = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')
+  log.error(`${isPlugin ? `[Plugin:${moduleName}]` : '[Core]'} ${message}`)
+
+  originalError.apply(console, [prefix, ...args])
 }
+
+// 捕获未处理的 Promise  rejection
+process.on('unhandledRejection', (reason) => {
+  log.error('[UnhandledRejection]', reason)
+})
+
+// 捕获未捕获的异常
+process.on('uncaughtException', (error) => {
+  log.error('[UncaughtException]', error)
+})
+
+// 导出 log 实例供其他模块直接使用
+export { log }
+
+// 导出获取日志文件路径的函数
+export const getLogFilePath = (): string => logFile

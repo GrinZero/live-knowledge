@@ -34,6 +34,7 @@ mac:
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSScreenRecordingUsageDescription: Application requests access to screen recording for capturing screen content and generating insights.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}

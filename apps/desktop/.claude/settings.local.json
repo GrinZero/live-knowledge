@@ -17,7 +17,12 @@
       "Read(//Library/Frameworks/Python.framework/**)",
       "Read(//usr/lib/python3/dist-packages/**)",
       "Bash(python3 -c \"import sys; print\\(sys.executable, sys.version\\)\")",
-      "Bash(/usr/bin/python3 -c \"import sys; print\\(sys.executable, sys.version\\)\")"
+      "Bash(/usr/bin/python3 -c \"import sys; print\\(sys.executable, sys.version\\)\")",
+      "mcp__MiniMax__web_search",
+      "Bash(pnpm add:*)",
+      "Read(//Users/bugyaluwang/project/live-knowledge/**)",
+      "Bash(pnpm build:mac)",
+      "mcp__MiniMax__understand_image"
     ]
   }
 }

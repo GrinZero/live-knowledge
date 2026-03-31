@@ -38,6 +38,7 @@
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.3.9",
     "express": "^4.21.2",
     "https-proxy-agent": "^7.0.6",

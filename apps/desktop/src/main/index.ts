@@ -28,6 +28,7 @@ import { APIServer } from './services/APIServer'
 import { PluginManager } from './services/PluginManager'
 import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
 import { pathToFileURL } from 'url'
+import { log, getLogFilePath } from './utils/logInterceptor'
 
 // Inject system proxy settings if provided in env
 // We do not hardcode defaults anymore, relying on process.env passed from shell
@@ -436,6 +437,19 @@ function setupIpcHandlers(): void {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Logs API - 导出日志文件
+  ipcMain.handle('logs:export', async () => {
+    try {
+      const logPath = getLogFilePath()
+      const fs = await import('fs')
+      const content = await fs.promises.readFile(logPath, 'utf-8')
+      return { success: true, content, path: logPath }
+    } catch (error) {
+      console.error('Failed to export logs:', error)
+      return { success: false, error: String(error) }
+    }
+  })
 }
 
 // Global shortcut management

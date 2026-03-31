@@ -24,7 +24,7 @@ export const PrivacyOverlay: React.FC = () => {
   if (!isLocked) return null
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/30 backdrop-blur-xl transition-all duration-300">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-white/30 backdrop-blur-xl transition-all duration-300">
       <div className="flex flex-col items-center gap-6 p-8 rounded-2xl bg-white/80 shadow-2xl border border-white/50 animate-in fade-in zoom-in duration-300">
         <div className="h-16 w-16 rounded-full bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-200">
           <Lock className="h-8 w-8 text-white" />
