@@ -3,12 +3,21 @@ productName: live-knowledge-app
 directories:
   buildResources: build
 files:
+  - out/**/*
+  - node_modules/**/*
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/.turbo/**'
+  - '!**/plugin-sdk/.turbo/**'
+  - '!**/plugin-sdk/bin/**'
+  - '!**/plugin-sdk/src/**'
+  - '!**/plugin-sdk/*.ts'
+  - '!**/plugin-sdk/*.json'
+  - '!**/plugin-sdk/!(*.d.ts)'
 asarUnpack:
   - resources/**
 win:
