@@ -136,10 +136,7 @@ export class ContextStateGraph {
   /**
    * Find similar nodes based on embedding similarity
    */
-  findSimilarByEmbedding(
-    embedding: number[],
-    threshold: number = 0.8
-  ): EventNodeData[] {
+  findSimilarByEmbedding(embedding: number[], threshold: number = 0.8): EventNodeData[] {
     const results: EventNodeData[] = []
 
     for (const node of this.nodes.values()) {

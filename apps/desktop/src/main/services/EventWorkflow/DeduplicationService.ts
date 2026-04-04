@@ -8,12 +8,7 @@
  * - Time decay (20%)
  */
 
-import type {
-  EventWorkflowConfig,
-  SimilarityResult,
-  DeduplicationDecision,
-  Tag
-} from './types'
+import type { EventWorkflowConfig, SimilarityResult, DeduplicationDecision, Tag } from './types'
 import { ContextStateGraph } from './ContextStateGraph'
 
 export class DeduplicationService {
@@ -89,10 +84,7 @@ export class DeduplicationService {
   /**
    * Make deduplication decision based on similarity result
    */
-  makeDecision(
-    similarityResult: SimilarityResult,
-    contentHash: string
-  ): DeduplicationDecision {
+  makeDecision(similarityResult: SimilarityResult, contentHash: string): DeduplicationDecision {
     const { compositeScore } = similarityResult
 
     // Check if this content has been skipped multiple times (forced dispatch)
@@ -256,6 +248,9 @@ export class DeduplicationService {
 export function createContentHash(text: string, tags: Tag[]): string {
   // Simple hash based on first few chars of text and tag types
   const textPrefix = text.slice(0, 50).toLowerCase().replace(/\s+/g, '')
-  const tagKey = tags.map((t) => `${t.type}:${t.title}`).sort().join('|')
+  const tagKey = tags
+    .map((t) => `${t.type}:${t.title}`)
+    .sort()
+    .join('|')
   return `${textPrefix}#${tagKey}`.slice(0, 100)
 }

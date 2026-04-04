@@ -706,7 +706,12 @@ export class APIServer {
         } catch (error) {
           console.error(`SSE poll error for client ${clientId}:`, error)
           // If the socket was closed prematurely, clean it up
-          if (error && typeof error === 'object' && 'code' in error && (error as any).code === 'ERR_STREAM_WRITE_AFTER_END') {
+          if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            (error as { code: string }).code === 'ERR_STREAM_WRITE_AFTER_END'
+          ) {
             this.sseClients.delete(clientId)
           }
         }

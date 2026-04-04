@@ -33,10 +33,15 @@ const validPluginIdArb = fc
  * Generator for plugin display names (JSON-safe).
  */
 const validPluginNameArb = fc
-  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "), {
-    minLength: 1,
-    maxLength: 30,
-  })
+  .array(
+    fc.constantFrom(
+      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
+    ),
+    {
+      minLength: 1,
+      maxLength: 30,
+    },
+  )
   .map((chars) => chars.join(""))
   .filter((s) => s.trim().length > 0);
 
@@ -44,10 +49,15 @@ const validPluginNameArb = fc
  * Generator for plugin descriptions (JSON-safe).
  */
 const validDescriptionArb = fc
-  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?-"), {
-    minLength: 0,
-    maxLength: 50,
-  })
+  .array(
+    fc.constantFrom(
+      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?-",
+    ),
+    {
+      minLength: 0,
+      maxLength: 50,
+    },
+  )
   .map((chars) => chars.join(""));
 
 /**
@@ -135,7 +145,6 @@ const rendererOnlyPluginConfigArb = pluginConfigArb.map((config) => ({
   },
 }));
 
-
 /**
  * Feature: plugin-scaffold, Property 4: Package.json 完整性
  * Validates: Requirements 3.1, 3.2, 3.3
@@ -213,7 +222,9 @@ describe("Property 4: Package.json Completeness", () => {
 
         // Verify plugin-sdk dependency
         expect(packageJson.dependencies).toBeDefined();
-        expect(packageJson.dependencies["@live-knowledge/plugin-sdk"]).toBeDefined();
+        expect(
+          packageJson.dependencies["@live-knowledge/plugin-sdk"],
+        ).toBeDefined();
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -296,7 +307,6 @@ describe("Property 4: Package.json Completeness", () => {
     );
   });
 });
-
 
 /**
  * Feature: plugin-scaffold, Property 5: 主进程代码结构
@@ -506,7 +516,6 @@ describe("Property 5: Main Process Code Structure", () => {
   });
 });
 
-
 /**
  * Feature: plugin-scaffold, Property 6: 渲染进程代码结构
  * Validates: Requirements 3.6
@@ -677,7 +686,6 @@ describe("Property 6: Renderer Process Code Structure", () => {
   });
 });
 
-
 /**
  * Feature: plugin-scaffold, Property 7: 条件性功能过滤
  * Validates: Requirements 3.7, 4.5
@@ -818,10 +826,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should NOT contain sidebarItems when sidebar is disabled
         const hasSidebarItems = content.includes("sidebarItems:");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_SIDEBAR") || 
-                                       content.includes("#endif FEATURE_SIDEBAR");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_SIDEBAR") ||
+          content.includes("#endif FEATURE_SIDEBAR");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -851,10 +860,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should contain sidebarItems when sidebar is enabled
         const hasSidebarItems = content.includes("sidebarItems:");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_SIDEBAR") || 
-                                       content.includes("#endif FEATURE_SIDEBAR");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_SIDEBAR") ||
+          content.includes("#endif FEATURE_SIDEBAR");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -888,10 +898,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should NOT contain ExamplePage import when page is disabled
         const hasExamplePageImport = content.includes("import { ExamplePage }");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_PAGE") || 
-                                       content.includes("#endif FEATURE_PAGE");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_PAGE") ||
+          content.includes("#endif FEATURE_PAGE");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -921,10 +932,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should contain ExamplePage import when page is enabled
         const hasExamplePageImport = content.includes("import { ExamplePage }");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_PAGE") || 
-                                       content.includes("#endif FEATURE_PAGE");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_PAGE") ||
+          content.includes("#endif FEATURE_PAGE");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -958,10 +970,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should NOT contain configSchema when feature is disabled
         const hasConfigSchema = content.includes("configSchema =");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_CONFIG_SCHEMA") || 
-                                       content.includes("#endif FEATURE_CONFIG_SCHEMA");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_CONFIG_SCHEMA") ||
+          content.includes("#endif FEATURE_CONFIG_SCHEMA");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -991,10 +1004,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should contain configSchema when feature is enabled
         const hasConfigSchema = content.includes("configSchema =");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_CONFIG_SCHEMA") || 
-                                       content.includes("#endif FEATURE_CONFIG_SCHEMA");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_CONFIG_SCHEMA") ||
+          content.includes("#endif FEATURE_CONFIG_SCHEMA");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -1028,10 +1042,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should NOT contain HTTP API registration when feature is disabled
         const hasHttpApi = content.includes("context.http.router");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_HTTP_API") || 
-                                       content.includes("#endif FEATURE_HTTP_API");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_HTTP_API") ||
+          content.includes("#endif FEATURE_HTTP_API");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -1061,10 +1076,11 @@ describe("Property 7: Conditional Feature Filtering", () => {
 
         // Should contain HTTP API registration when feature is enabled
         const hasHttpApi = content.includes("context.http.router");
-        
+
         // Should NOT contain conditional block markers
-        const hasConditionalMarkers = content.includes("#if FEATURE_HTTP_API") || 
-                                       content.includes("#endif FEATURE_HTTP_API");
+        const hasConditionalMarkers =
+          content.includes("#if FEATURE_HTTP_API") ||
+          content.includes("#endif FEATURE_HTTP_API");
 
         // Clean up after test
         fs.rmSync(targetDir, { recursive: true, force: true });
@@ -1101,7 +1117,10 @@ describe("Property 7: Conditional Feature Filtering", () => {
               const ext = path.extname(entry.name).toLowerCase();
               if ([".ts", ".tsx", ".js", ".jsx"].includes(ext)) {
                 const content = fs.readFileSync(fullPath, "utf-8");
-                if (content.includes("#if FEATURE_") || content.includes("#endif FEATURE_")) {
+                if (
+                  content.includes("#if FEATURE_") ||
+                  content.includes("#endif FEATURE_")
+                ) {
                   noConditionalMarkers = false;
                 }
               }

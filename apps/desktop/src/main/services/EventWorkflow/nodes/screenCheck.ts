@@ -27,7 +27,9 @@ export async function screenCheckNode(
       }
     }
 
-    console.log(`[screenCheck] Screen change detected (similarity: ${changeResult.similarity.toFixed(3)})`)
+    console.log(
+      `[screenCheck] Screen change detected (similarity: ${changeResult.similarity.toFixed(3)})`
+    )
 
     return {
       workflowState: 'capturing',

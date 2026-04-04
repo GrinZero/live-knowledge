@@ -44,7 +44,7 @@ export default function Settings(): React.JSX.Element {
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [quickCaptureShortcut, setQuickCaptureShortcut] = useState('CommandOrControl+Shift+S')
-  const [isCapturingShortcut, _setIsCapturingShortcut] = useState(false)
+  const [isCapturingShortcut] = useState(false)
   const [eventTypes, setEventTypes] = useState<EventType[]>([])
   const [eventFilter, setEventFilter] = useState<'all' | 'core' | 'plugin'>('all')
 

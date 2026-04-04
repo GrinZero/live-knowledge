@@ -34,54 +34,54 @@ function App(): React.JSX.Element {
 
   return (
     <>
-    <PrivacyOverlay />
-    <Routes>
-      {/* Full Page Plugin Routes (Standalone with Back Button) */}
-      {pageRoutes.map((route) => (
+      <PrivacyOverlay />
+      <Routes>
+        {/* Full Page Plugin Routes (Standalone with Back Button) */}
+        {pageRoutes.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              <PluginPageLayout title={route.title}>
+                <PluginErrorBoundary pluginId={route.pluginId}>{route.element}</PluginErrorBoundary>
+              </PluginPageLayout>
+            }
+          />
+        ))}
+
+        {/* Main App Routes & Sidebar Plugin Routes */}
         <Route
-          key={route.path}
-          path={route.path}
+          path="*"
           element={
-            <PluginPageLayout title={route.title}>
-              <PluginErrorBoundary pluginId={route.pluginId}>{route.element}</PluginErrorBoundary>
-            </PluginPageLayout>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Monitor />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/events" element={<EventHistory />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/plugins" element={<Plugins />} />
+                <Route path="/overlay" element={<Overlay />} />
+                <Route path="/presentation/overlay" element={<OverlayPresentation />} />
+                <Route path="/presentation/sidebar" element={<SidebarPresentation />} />
+                <Route path="/presentation/bubble" element={<BubblePresentation />} />
+
+                {/* Sidebar Plugin Routes (Rendered inside Layout) */}
+                {sidebarRoutes.map((route) => (
+                  <Route
+                    key={route.path}
+                    path={route.path}
+                    element={
+                      <PluginErrorBoundary pluginId={route.pluginId}>
+                        {route.element}
+                      </PluginErrorBoundary>
+                    }
+                  />
+                ))}
+              </Routes>
+            </Layout>
           }
         />
-      ))}
-
-      {/* Main App Routes & Sidebar Plugin Routes */}
-      <Route
-        path="*"
-        element={
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Monitor />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/events" element={<EventHistory />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/plugins" element={<Plugins />} />
-              <Route path="/overlay" element={<Overlay />} />
-              <Route path="/presentation/overlay" element={<OverlayPresentation />} />
-              <Route path="/presentation/sidebar" element={<SidebarPresentation />} />
-              <Route path="/presentation/bubble" element={<BubblePresentation />} />
-
-              {/* Sidebar Plugin Routes (Rendered inside Layout) */}
-              {sidebarRoutes.map((route) => (
-                <Route
-                  key={route.path}
-                  path={route.path}
-                  element={
-                    <PluginErrorBoundary pluginId={route.pluginId}>
-                      {route.element}
-                    </PluginErrorBoundary>
-                  }
-                />
-              ))}
-            </Routes>
-          </Layout>
-        }
-      />
-    </Routes>
+      </Routes>
     </>
   )
 }

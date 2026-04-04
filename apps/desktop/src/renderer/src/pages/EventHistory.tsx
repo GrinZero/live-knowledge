@@ -115,20 +115,20 @@ export default function EventHistory(): React.JSX.Element {
 
   // SSE 实时更新 - 收到新事件通知时重新加载数据
   useEffect(() => {
-    let eventSource: EventSource | null = null;
-    let isActive = true;
+    let eventSource: EventSource | null = null
+    let isActive = true
 
     const initSse = async () => {
-      let port = 3000;
+      let port = 3000
       try {
         if (window.api && window.api.apiServer) {
-          port = await window.api.apiServer.getPort();
+          port = await window.api.apiServer.getPort()
         }
       } catch (error) {
-        console.warn('Failed to get dynamic port for SSE, falling back to 3000', error);
+        console.warn('Failed to get dynamic port for SSE, falling back to 3000', error)
       }
 
-      if (!isActive) return;
+      if (!isActive) return
 
       const apiUrl = import.meta.env.VITE_API_URL || `http://localhost:${port}`
       eventSource = new EventSource(`${apiUrl}/api/events/stream`)
@@ -171,12 +171,12 @@ export default function EventHistory(): React.JSX.Element {
           }
         }, 5000)
       }
-    };
+    }
 
-    initSse();
+    initSse()
 
     return () => {
-      isActive = false;
+      isActive = false
       if (eventSource) {
         eventSource.close()
       }

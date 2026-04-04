@@ -13,7 +13,7 @@ export interface WebhookLogEntry {
   id: string;
   url: string;
   event: string;
-  status: 'success' | 'failed';
+  status: "success" | "failed";
   statusCode?: number;
   error?: string;
   timestamp: string;
@@ -24,7 +24,8 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
   id = "webhook-plugin";
   name = "Webhook Integration";
   version = "2.0.0";
-  description = "Forwards events to configured webhook endpoints via JSON POST.";
+  description =
+    "Forwards events to configured webhook endpoints via JSON POST.";
 
   config: Record<string, unknown> = {};
 
@@ -66,7 +67,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
 
   private maxLogs = 100;
 
-  private addLog(entry: Omit<WebhookLogEntry, 'id' | 'timestamp'>): void {
+  private addLog(entry: Omit<WebhookLogEntry, "id" | "timestamp">): void {
     const log: WebhookLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
@@ -83,11 +84,11 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
     this.context = context;
 
     // Register IPC handler for webhook logs
-    context.ipc.handle('webhook-plugin:getLogs', async () => {
+    context.ipc.handle("webhook-plugin:getLogs", async () => {
       return this.webhookLogs.slice().reverse();
     });
 
-    context.ipc.handle('webhook-plugin:clearLogs', async () => {
+    context.ipc.handle("webhook-plugin:clearLogs", async () => {
       this.webhookLogs = [];
       return true;
     });
@@ -101,12 +102,15 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
       {
         type: "webhook.delivery_failed",
         domain: "system",
-        description: "Webhook plugin failed to deliver an outbound webhook request.",
+        description:
+          "Webhook plugin failed to deliver an outbound webhook request.",
       },
     ]);
   }
 
-  private convertBuffersToBase64(obj: Record<string, unknown>): Record<string, unknown> {
+  private convertBuffersToBase64(
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       if (Buffer.isBuffer(value)) {
@@ -121,7 +125,7 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
       ) {
         const newKey = key.replace(/Buffer$/, "Base64");
         result[newKey] = Buffer.from(
-          ((value as unknown) as { data: number[] }).data,
+          (value as unknown as { data: number[] }).data,
         ).toString("base64");
       } else {
         result[key] = value;
@@ -191,19 +195,23 @@ export class WebhookPlugin implements LiveKnowledgePlugin {
             });
           }
         } catch (error) {
-          let errorMessage = error instanceof Error ? error.message : String(error);
+          let errorMessage =
+            error instanceof Error ? error.message : String(error);
 
           // 尝试获取更详细的错误信息
           if (error instanceof TypeError && error.cause) {
             const cause = error.cause;
             if (cause instanceof Error) {
               errorMessage = `${errorMessage} (cause: ${cause.message})`;
-            } else if (typeof cause === 'object' && cause !== null) {
+            } else if (typeof cause === "object" && cause !== null) {
               // 尝试获取 syscall、code 等信息
               const causeObj = cause as Record<string, unknown>;
-              if (causeObj.code) errorMessage = `${errorMessage} [${causeObj.code}]`;
-              if (causeObj.syscall) errorMessage = `${errorMessage} (syscall: ${causeObj.syscall})`;
-              if (causeObj.hostname) errorMessage = `${errorMessage} (hostname: ${causeObj.hostname})`;
+              if (causeObj.code)
+                errorMessage = `${errorMessage} [${causeObj.code}]`;
+              if (causeObj.syscall)
+                errorMessage = `${errorMessage} (syscall: ${causeObj.syscall})`;
+              if (causeObj.hostname)
+                errorMessage = `${errorMessage} (hostname: ${causeObj.hostname})`;
             }
           }
 

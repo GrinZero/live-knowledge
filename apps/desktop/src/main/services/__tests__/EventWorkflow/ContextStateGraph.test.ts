@@ -2,7 +2,7 @@
  * ContextStateGraph Tests
  */
 
-import { ContextStateGraph } from '../EventWorkflow/ContextStateGraph'
+import { ContextStateGraph } from '../../EventWorkflow/ContextStateGraph'
 
 describe('ContextStateGraph', () => {
   let graph: ContextStateGraph
@@ -31,8 +31,22 @@ describe('ContextStateGraph', () => {
     })
 
     it('should connect consecutive nodes with edges', () => {
-      const nodeId1 = graph.addNode('00010001', null, 'https://example.com/1', 'Summary 1', 'Text 1', [])
-      const nodeId2 = graph.addNode('00010001', null, 'https://example.com/2', 'Summary 2', 'Text 2', [])
+      const nodeId1 = graph.addNode(
+        '00010001',
+        null,
+        'https://example.com/1',
+        'Summary 1',
+        'Text 1',
+        []
+      )
+      const nodeId2 = graph.addNode(
+        '00010001',
+        null,
+        'https://example.com/2',
+        'Summary 2',
+        'Text 2',
+        []
+      )
 
       const node1 = graph.getNode(nodeId1)
       const node2 = graph.getNode(nodeId2)

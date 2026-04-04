@@ -59,8 +59,9 @@ export function toPascalCase(name: string): string {
  * @example
  * directoryExists('./my-plugin') // returns true if directory exists
  */
+import fs from "fs";
+
 export function directoryExists(dirPath: string): boolean {
-  const fs = require("fs");
   try {
     const stats = fs.statSync(dirPath);
     return stats.isDirectory();
