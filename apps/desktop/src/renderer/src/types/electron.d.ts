@@ -74,6 +74,10 @@ export interface WindowAPI {
   onFocus: (callback: () => void) => void
 }
 
+export interface ApiServerAPI {
+  getPort: () => Promise<number>
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
@@ -82,6 +86,7 @@ export interface API {
   shortcut: ShortcutAPI
   window: WindowAPI
   plugins: PluginsAPI
+  apiServer: ApiServerAPI
 }
 
 declare global {

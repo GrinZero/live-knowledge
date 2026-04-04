@@ -1,14 +1,39 @@
-const BASE_URL = 'http://localhost:3000/api'
+let BASE_URL = 'http://localhost:3000/api'
+
+// Initialize BASE_URL dynamically
+const initBaseUrl = async () => {
+  try {
+    if (window.api && window.api.apiServer) {
+      const port = await window.api.apiServer.getPort()
+      BASE_URL = `http://localhost:${port}/api`
+    }
+  } catch (error) {
+    console.warn('Failed to fetch dynamic API port, falling back to 3000:', error)
+  }
+}
+
+// Call it immediately, but API calls might happen before it finishes.
+// In practice, we can wrap fetch to ensure baseUrl is ready.
+let baseUrlPromise: Promise<void> | null = null;
+const getBaseUrl = async () => {
+  if (!baseUrlPromise) {
+    baseUrlPromise = initBaseUrl();
+  }
+  await baseUrlPromise;
+  return BASE_URL;
+}
 
 export const apiClient = {
   settings: {
     getAIConfig: async () => {
-      const res = await fetch(`${BASE_URL}/settings/ai-config`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/ai-config`)
       if (!res.ok) throw new Error('Failed to fetch AI config')
       return res.json()
     },
     saveAIConfig: async (config: Record<string, unknown>) => {
-      const res = await fetch(`${BASE_URL}/settings/ai-config`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/ai-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -17,7 +42,8 @@ export const apiClient = {
       return res.json()
     },
     fetchModels: async (config: Record<string, unknown>) => {
-      const res = await fetch(`${BASE_URL}/settings/fetch-models`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/fetch-models`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -26,12 +52,14 @@ export const apiClient = {
       return res.json()
     },
     getAppSettings: async () => {
-      const res = await fetch(`${BASE_URL}/settings/app`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/app`)
       if (!res.ok) throw new Error('Failed to fetch app settings')
       return res.json()
     },
     saveAppSettings: async (settings: { notificationsEnabled: boolean }) => {
-      const res = await fetch(`${BASE_URL}/settings/app`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/app`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
@@ -40,12 +68,14 @@ export const apiClient = {
       return res.json()
     },
     getShortcut: async () => {
-      const res = await fetch(`${BASE_URL}/settings/shortcut`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/shortcut`)
       if (!res.ok) throw new Error('Failed to get shortcut')
       return res.json()
     },
     saveShortcut: async (shortcut: string) => {
-      const res = await fetch(`${BASE_URL}/settings/shortcut`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/settings/shortcut`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shortcut })
@@ -56,12 +86,14 @@ export const apiClient = {
   },
   monitoring: {
     getStatus: async () => {
-      const res = await fetch(`${BASE_URL}/monitoring/status`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/monitoring/status`)
       if (!res.ok) throw new Error('Failed to fetch status')
       return res.json()
     },
     start: async (config: Record<string, unknown>) => {
-      const res = await fetch(`${BASE_URL}/monitoring/start`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/monitoring/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -70,45 +102,53 @@ export const apiClient = {
       return res.json()
     },
     stop: async () => {
-      const res = await fetch(`${BASE_URL}/monitoring/stop`, { method: 'POST' })
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/monitoring/stop`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to stop monitoring')
       return res.json()
     },
     pause: async () => {
-      const res = await fetch(`${BASE_URL}/monitoring/pause`, { method: 'POST' })
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/monitoring/pause`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to pause monitoring')
       return res.json()
     },
     resume: async () => {
-      const res = await fetch(`${BASE_URL}/monitoring/resume`, { method: 'POST' })
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/monitoring/resume`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to resume monitoring')
       return res.json()
     }
   },
   database: {
     getInsights: async (limit = 50) => {
-      const res = await fetch(`${BASE_URL}/insights?limit=${limit}`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/insights?limit=${limit}`)
       if (!res.ok) throw new Error('Failed to fetch insights')
       return res.json()
     },
     getKnowledgeItems: async (limit = 100) => {
-      const res = await fetch(`${BASE_URL}/knowledge?limit=${limit}`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/knowledge?limit=${limit}`)
       if (!res.ok) throw new Error('Failed to fetch knowledge items')
       return res.json()
     },
     searchKnowledge: async (query: string) => {
-      const res = await fetch(`${BASE_URL}/knowledge/search?q=${encodeURIComponent(query)}`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/knowledge/search?q=${encodeURIComponent(query)}`)
       if (!res.ok) throw new Error('Failed to search knowledge')
       return res.json()
     },
     getUser: async (userId: string) => {
-      const res = await fetch(`${BASE_URL}/users/${userId}`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/users/${userId}`)
       if (res.status === 404) return null
       if (!res.ok) throw new Error('Failed to fetch user')
       return res.json()
     },
     createUser: async (userData: Record<string, unknown>) => {
-      const res = await fetch(`${BASE_URL}/users`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
@@ -117,19 +157,22 @@ export const apiClient = {
       return res.json()
     },
     deleteKnowledgeItem: async (id: string) => {
-      const res = await fetch(`${BASE_URL}/knowledge/${id}`, { method: 'DELETE' })
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/knowledge/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete knowledge item')
       return res.json()
     }
   },
   plugins: {
     list: async () => {
-      const res = await fetch(`${BASE_URL}/plugins`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/plugins`)
       if (!res.ok) throw new Error('Failed to fetch plugins')
       return res.json()
     },
     toggle: async (id: string, enabled: boolean) => {
-      const res = await fetch(`${BASE_URL}/plugins/toggle`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/plugins/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, enabled })
@@ -138,7 +181,8 @@ export const apiClient = {
       return res.json()
     },
     updateConfig: async (id: string, config: Record<string, unknown>) => {
-      const res = await fetch(`${BASE_URL}/plugins/config`, {
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/plugins/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, config })
@@ -149,16 +193,18 @@ export const apiClient = {
   },
   events: {
     getTypes: async (options?: { domain?: string; source?: string }) => {
+      const baseUrl = await getBaseUrl();
       const params = new URLSearchParams()
       if (options?.domain) params.append('domain', options.domain)
       if (options?.source) params.append('source', options.source)
       const query = params.toString()
-      const res = await fetch(`${BASE_URL}/events/types${query ? `?${query}` : ''}`)
+      const res = await fetch(`${baseUrl}/events/types${query ? `?${query}` : ''}`)
       if (!res.ok) throw new Error('Failed to fetch event types')
       return res.json()
     },
     getType: async (type: string) => {
-      const res = await fetch(`${BASE_URL}/events/types/${encodeURIComponent(type)}`)
+      const baseUrl = await getBaseUrl();
+      const res = await fetch(`${baseUrl}/events/types/${encodeURIComponent(type)}`)
       if (!res.ok) throw new Error('Failed to fetch event type')
       return res.json()
     },
@@ -170,6 +216,7 @@ export const apiClient = {
       endDate?: string
       search?: string
     }) => {
+      const baseUrl = await getBaseUrl();
       const params = new URLSearchParams()
       if (options?.page) params.append('page', String(options.page))
       if (options?.pageSize) params.append('pageSize', String(options.pageSize))
@@ -178,7 +225,7 @@ export const apiClient = {
       if (options?.endDate) params.append('endDate', options.endDate)
       if (options?.search) params.append('search', options.search)
       const query = params.toString()
-      const res = await fetch(`${BASE_URL}/events${query ? `?${query}` : ''}`)
+      const res = await fetch(`${baseUrl}/events${query ? `?${query}` : ''}`)
       if (!res.ok) throw new Error('Failed to fetch event history')
       return res.json()
     }

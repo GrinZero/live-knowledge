@@ -94,6 +94,11 @@ const api = {
   // Logs APIs
   logs: {
     export: () => ipcRenderer.invoke('logs:export')
+  },
+
+  // API Server APIs
+  apiServer: {
+    getPort: () => ipcRenderer.invoke('api:getPort')
   }
 }
 

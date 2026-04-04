@@ -122,6 +122,12 @@ declare global {
         onBlur: (callback: () => void) => void
         onFocus: (callback: () => void) => void
       }
+      logs: {
+        export: () => Promise<{ success: boolean; content?: string; path?: string; error?: string }>
+      }
+      apiServer: {
+        getPort: () => Promise<number>
+      }
     }
   }
 }
