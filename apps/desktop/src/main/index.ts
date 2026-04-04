@@ -28,7 +28,7 @@ import { APIServer } from './services/APIServer'
 import { PluginManager } from './services/PluginManager'
 import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
 import { pathToFileURL } from 'url'
-import { log, getLogFilePath } from './utils/logInterceptor'
+import { getLogFilePath } from './utils/logInterceptor'
 
 // Inject system proxy settings if provided in env
 // We do not hardcode defaults anymore, relying on process.env passed from shell
@@ -255,22 +255,31 @@ async function initializeServices(): Promise<void> {
     )
     console.log('Monitoring service initialized')
 
-    // Initialize API server
+    // Initialize API server with dynamic port (0 means random available port)
     apiServer = new APIServer(
       databaseService,
       monitoringService,
       presentationService,
       pluginManager,
       aiEngine,
-      3000
+      0
     )
-    await apiServer.start()
-    console.log('API server initialized on port 3000')
+    const port = await apiServer.start()
+    console.log(`API server initialized on port ${port}`)
   } catch (error) {
     console.error('Failed to initialize services:', error)
     throw error
   }
 }
+
+// Setup unhandled error catchers to prevent process crash
+process.on('uncaughtException', (error) => {
+  console.error('UNCAUGHT EXCEPTION:', error)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason)
+})
 
 // Setup IPC handlers
 function setupIpcHandlers(): void {
@@ -437,6 +446,11 @@ function setupIpcHandlers(): void {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // API server port exposure
+  ipcMain.handle('api:getPort', () => {
+    return apiServer?.getPort() || 3000
+  })
 
   // Logs API - 导出日志文件
   ipcMain.handle('logs:export', async () => {

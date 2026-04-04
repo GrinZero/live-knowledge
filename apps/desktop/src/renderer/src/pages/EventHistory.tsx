@@ -115,50 +115,71 @@ export default function EventHistory(): React.JSX.Element {
 
   // SSE 实时更新 - 收到新事件通知时重新加载数据
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-    const eventSource = new EventSource(`${apiUrl}/api/events/stream`)
-    eventSourceRef.current = eventSource
+    let eventSource: EventSource | null = null;
+    let isActive = true;
 
-    eventSource.onmessage = (event) => {
+    const initSse = async () => {
+      let port = 3000;
       try {
-        const data = JSON.parse(event.data)
-
-        if (data.type === 'init' && data.events && data.events.length > 0) {
-          // SSE 初始化数据直接使用（已包含 screenshotBase64）
-          const latestEvents = data.events.slice(0, pageSize)
-          setEvents(latestEvents)
-          setTotal(data.events.length)
-          setTotalPages(Math.ceil(data.events.length / pageSize))
-          setSseInitialized(true)
-        } else if (data.type === 'update' && data.events && data.events.length > 0) {
-          // 新事件更新：插入到列表顶部
-          setEvents((prev) => {
-            const newEvents = data.events.filter(
-              (newEvent: TriggerEvent) => !prev.some((e) => e.id === newEvent.id)
-            )
-            if (newEvents.length === 0) return prev
-            return [...newEvents, ...prev].slice(0, pageSize * 3)
-          })
-          setTotal((prev) => prev + data.events.length)
+        if (window.api && window.api.apiServer) {
+          port = await window.api.apiServer.getPort();
         }
       } catch (error) {
-        console.error('SSE parse error:', error)
+        console.warn('Failed to get dynamic port for SSE, falling back to 3000', error);
       }
-    }
 
-    eventSource.onerror = () => {
-      console.error('SSE connection error, reconnecting...')
-      eventSource.close()
-      setTimeout(() => {
-        if (eventSourceRef.current === eventSource) {
-          eventSourceRef.current = null
-          setSseInitialized(false)
+      if (!isActive) return;
+
+      const apiUrl = import.meta.env.VITE_API_URL || `http://localhost:${port}`
+      eventSource = new EventSource(`${apiUrl}/api/events/stream`)
+      eventSourceRef.current = eventSource
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          if (data.type === 'init' && data.events && data.events.length > 0) {
+            // SSE 初始化数据直接使用（已包含 screenshotBase64）
+            const latestEvents = data.events.slice(0, pageSize)
+            setEvents(latestEvents)
+            setTotal(data.events.length)
+            setTotalPages(Math.ceil(data.events.length / pageSize))
+            setSseInitialized(true)
+          } else if (data.type === 'update' && data.events && data.events.length > 0) {
+            // 新事件更新：插入到列表顶部
+            setEvents((prev) => {
+              const newEvents = data.events.filter(
+                (newEvent: TriggerEvent) => !prev.some((e) => e.id === newEvent.id)
+              )
+              if (newEvents.length === 0) return prev
+              return [...newEvents, ...prev].slice(0, pageSize * 3)
+            })
+            setTotal((prev) => prev + data.events.length)
+          }
+        } catch (error) {
+          console.error('SSE parse error:', error)
         }
-      }, 5000)
-    }
+      }
+
+      eventSource.onerror = () => {
+        console.error('SSE connection error, reconnecting...')
+        eventSource?.close()
+        setTimeout(() => {
+          if (eventSourceRef.current === eventSource) {
+            eventSourceRef.current = null
+            setSseInitialized(false)
+          }
+        }, 5000)
+      }
+    };
+
+    initSse();
 
     return () => {
-      eventSource.close()
+      isActive = false;
+      if (eventSource) {
+        eventSource.close()
+      }
       eventSourceRef.current = null
     }
   }, [])

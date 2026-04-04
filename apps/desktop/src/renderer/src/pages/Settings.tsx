@@ -179,7 +179,7 @@ export default function Settings(): React.JSX.Element {
   const handleExportLogs = async () => {
     try {
       const result = await window.api.logs.export()
-      if (result.success) {
+      if (result.success && result.content) {
         // 创建下载链接
         const blob = new Blob([result.content], { type: 'text/plain' })
         const url = URL.createObjectURL(blob)
@@ -192,7 +192,7 @@ export default function Settings(): React.JSX.Element {
         URL.revokeObjectURL(url)
         toast.success('日志已导出')
       } else {
-        toast.error('导出日志失败: ' + result.error)
+        toast.error('导出日志失败: ' + (result.error || '未获取到内容'))
       }
     } catch (error) {
       console.error('Failed to export logs:', error)
