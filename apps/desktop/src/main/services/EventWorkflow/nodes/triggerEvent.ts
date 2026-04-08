@@ -9,7 +9,11 @@ import type { KnowledgeItem } from '../../../../renderer/src/types'
 
 export interface TriggerEventNodeDeps {
   pluginManager: PluginManager
-  createKnowledgeItem: (tags: EventWorkflowState['analyzedTags'], content: string, screenshotPaths: string[]) => Promise<KnowledgeItem>
+  createKnowledgeItem: (
+    tags: EventWorkflowState['analyzedTags'],
+    content: string,
+    screenshotPaths: string[]
+  ) => Promise<KnowledgeItem>
 }
 
 export async function triggerEventNode(

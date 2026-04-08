@@ -3,14 +3,22 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "out/**"]
+      "outputs": ["dist/**", "out/**", ".next/**"]
     },
-    "lint": {},
-    "lint:fix": {},
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "lint:fix": {
+      "dependsOn": ["^build"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
     },
-    "typecheck": {}
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {},
+    "test:e2e": {}
   }
 }

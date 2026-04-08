@@ -19,8 +19,7 @@
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^12.1.0",
-    "handlebars": "^4.7.8",
-    "inquirer": "^8.2.6"
+    "handlebars": "^4.7.8"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -29,6 +28,7 @@
     "@types/node": "^20.0.0",
     "eslint": "^9.36.0",
     "fast-check": "^3.23.2",
+    "inquirer": "^8.2.7",
     "prettier": "^3.7.4",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",

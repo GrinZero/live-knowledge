@@ -11,7 +11,7 @@ const navItems = [
   { path: '/dashboard', label: '知识库', icon: LayoutDashboard },
   { path: '/events', label: '事件历史', icon: History },
   { path: '/plugins', label: '插件', icon: Plug },
-  { path: '/settings', label: '设置', icon: Settings },
+  { path: '/settings', label: '设置', icon: Settings }
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -51,7 +51,9 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                <Icon className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`} />
+                <Icon
+                  className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`}
+                />
                 <span>{label}</span>
               </Link>
             )
@@ -78,7 +80,9 @@ export default function Layout({ children }: { children: React.ReactNode }): Rea
                     }`}
                   >
                     <PluginErrorBoundary pluginId={pluginId} variant="icon">
-                      <Icon className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <Icon
+                        className={`h-[18px] w-[18px] ${active ? 'text-blue-600' : 'text-gray-400'}`}
+                      />
                     </PluginErrorBoundary>
                     <span>{label}</span>
                   </Link>

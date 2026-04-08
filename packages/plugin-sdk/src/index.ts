@@ -86,7 +86,8 @@ export const CORE_EVENT_TYPES: readonly EventTypeDefinition[] = [
   {
     type: "knowledge.created",
     domain: "knowledge",
-    description: "A new knowledge item is persisted by the monitoring pipeline.",
+    description:
+      "A new knowledge item is persisted by the monitoring pipeline.",
   },
   {
     type: "insight.generated",

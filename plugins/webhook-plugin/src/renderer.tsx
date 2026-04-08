@@ -1,4 +1,10 @@
-import { Webhook as WebhookIcon, FileCode, Trash, CheckCircle, XCircle } from "lucide-react";
+import {
+  Webhook as WebhookIcon,
+  FileCode,
+  Trash,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface WebhookLogEntry {
@@ -20,7 +26,9 @@ function WebhookLogsPage(): React.JSX.Element {
     setLogsLoading(true);
     try {
       // @ts-ignore - window.api.plugins.invoke is provided by preload
-      const logs = (await window.api.plugins.invoke("webhook-plugin:getLogs")) as WebhookLogEntry[] | null;
+      const logs = (await window.api.plugins.invoke(
+        "webhook-plugin:getLogs",
+      )) as WebhookLogEntry[] | null;
       setWebhookLogs(logs || []);
     } catch (error) {
       console.error("Failed to load webhook logs:", error);
@@ -51,7 +59,9 @@ function WebhookLogsPage(): React.JSX.Element {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Webhook 日志</h1>
-          <p className="text-sm text-gray-500 mt-1">查看所有 webhook 事件发送记录</p>
+          <p className="text-sm text-gray-500 mt-1">
+            查看所有 webhook 事件发送记录
+          </p>
         </div>
         {webhookLogs.length > 0 && (
           <button
@@ -70,12 +80,17 @@ function WebhookLogsPage(): React.JSX.Element {
         <div className="bg-white rounded-xl border border-gray-100 p-16 text-center">
           <FileCode className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500">暂无日志记录</p>
-          <p className="text-sm text-gray-400 mt-1">发送 webhook 后将显示日志</p>
+          <p className="text-sm text-gray-400 mt-1">
+            发送 webhook 后将显示日志
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
           {webhookLogs.map((log) => (
-            <div key={log.id} className="p-5 hover:bg-gray-50/50 transition-colors">
+            <div
+              key={log.id}
+              className="p-5 hover:bg-gray-50/50 transition-colors"
+            >
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex items-center gap-3">
                   {log.status === "success" ? (
@@ -85,13 +100,17 @@ function WebhookLogsPage(): React.JSX.Element {
                   )}
                   <span
                     className={`font-medium ${
-                      log.status === "success" ? "text-green-600" : "text-red-600"
+                      log.status === "success"
+                        ? "text-green-600"
+                        : "text-red-600"
                     }`}
                   >
                     {log.status === "success" ? "成功" : "失败"}
                   </span>
                   {log.statusCode && (
-                    <span className="text-sm text-gray-400">HTTP {log.statusCode}</span>
+                    <span className="text-sm text-gray-400">
+                      HTTP {log.statusCode}
+                    </span>
                   )}
                 </div>
                 <span className="text-sm text-gray-400">
@@ -102,7 +121,9 @@ function WebhookLogsPage(): React.JSX.Element {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-400">URL:</span>
-                  <code className="ml-2 text-gray-600 break-all">{log.url}</code>
+                  <code className="ml-2 text-gray-600 break-all">
+                    {log.url}
+                  </code>
                 </div>
                 <div>
                   <span className="text-gray-400">事件:</span>
@@ -123,6 +144,8 @@ function WebhookLogsPage(): React.JSX.Element {
     </div>
   );
 }
+
+export { WebhookLogsPage };
 
 // Register plugin with sidebar items
 // @ts-ignore - layout property is valid in the actual plugin system

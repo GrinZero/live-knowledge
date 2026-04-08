@@ -108,7 +108,9 @@ If the user mentions or displays items that look like tasks, actions, or TODOs:
 
     onAction: async (action: Action) => {
       if (action.type === "sync_todo") {
-        const payload = action.payload as { todos: Array<{ title: string; content?: string }> };
+        const payload = action.payload as {
+          todos: Array<{ title: string; content?: string }>;
+        };
         if (!payload.todos || !Array.isArray(payload.todos)) return false;
 
         const sessionId = uuidv4();
@@ -176,7 +178,8 @@ If the user mentions or displays items that look like tasks, actions, or TODOs:
   }
 
   private async performSync(todos: TodoItem[]) {
-    const provider = (this.config.provider as string) || this.defaultConfig.provider;
+    const provider =
+      (this.config.provider as string) || this.defaultConfig.provider;
 
     if (provider === "macos_notes") {
       return this.syncToMacOSNotes(todos);
@@ -187,15 +190,21 @@ If the user mentions or displays items that look like tasks, actions, or TODOs:
   }
 
   private async syncToMacOSNotes(todos: TodoItem[]) {
-    const folder = (this.config.macosNotesFolder as string) || this.defaultConfig.macosNotesFolder;
+    const folder =
+      (this.config.macosNotesFolder as string) ||
+      this.defaultConfig.macosNotesFolder;
     const results = [];
 
     for (const todo of todos) {
       try {
-        const body = todo.content ? `${todo.title}\n\n${todo.content}` : todo.title;
+        const body = todo.content
+          ? `${todo.title}\n\n${todo.content}`
+          : todo.title;
         // Escape double quotes and backslashes for AppleScript string literals
         const escapedBody = body.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        const escapedFolder = folder.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const escapedFolder = folder
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"');
 
         const script = `
           tell application "Notes"
@@ -252,15 +261,19 @@ If the user mentions or displays items that look like tasks, actions, or TODOs:
                 title: [{ text: { content: todo.title } }],
               },
             },
-            children: todo.content ? [
-              {
-                object: "block",
-                type: "paragraph",
-                paragraph: {
-                  rich_text: [{ type: "text", text: { content: todo.content } }],
-                },
-              },
-            ] : [],
+            children: todo.content
+              ? [
+                  {
+                    object: "block",
+                    type: "paragraph",
+                    paragraph: {
+                      rich_text: [
+                        { type: "text", text: { content: todo.content } },
+                      ],
+                    },
+                  },
+                ]
+              : [],
           }),
         });
 
