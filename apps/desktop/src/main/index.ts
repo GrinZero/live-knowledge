@@ -28,7 +28,7 @@ import { APIServer } from './services/APIServer'
 import { PluginManager } from './services/PluginManager'
 import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
 import { pathToFileURL } from 'url'
-import { log, getLogFilePath } from './utils/logInterceptor'
+import { getLogFilePath } from './utils/logInterceptor'
 
 // Inject system proxy settings if provided in env
 // We do not hardcode defaults anymore, relying on process.env passed from shell

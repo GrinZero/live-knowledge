@@ -1,10 +1,7 @@
-import { createWorker, Worker } from 'tesseract.js'
 import { Tag } from '../../renderer/src/types'
 import { AIEngine } from './AIEngine'
 
 export class ContentAnalyzer {
-  private tesseractWorker: Worker | null = null
-  private isWorkerInitialized: boolean = false
   private aiEngine: AIEngine | null = null
   private analysisQueue: Array<{
     buffer: Buffer
@@ -20,21 +17,13 @@ export class ContentAnalyzer {
   }
 
   async initialize(): Promise<void> {
-    if (this.isWorkerInitialized) return
+    // No async initialization needed currently
+  }
 
-    try {
-      this.tesseractWorker = await createWorker('chi_sim+eng')
-      if (this.tesseractWorker?.setParameters) {
-        await this.tesseractWorker.setParameters({
-          preserve_interword_spaces: '1',
-          user_defined_dpi: '300'
-        })
-      }
-      this.isWorkerInitialized = true
-    } catch (error) {
-      console.error('Failed to initialize Tesseract worker:', error)
-      throw error
-    }
+  async terminate(): Promise<void> {
+    // Clean up resources
+    this.analysisQueue = []
+    this.isQueueRunning = false
   }
 
   async analyzeImage(imageBuffer: Buffer): Promise<{ text: string; tags: Tag[] }> {
@@ -66,37 +55,13 @@ export class ContentAnalyzer {
     if (this.aiEngine) {
       try {
         const result = await this.aiEngine.analyzeImage(imageBuffer)
-        if (result.text && result.text.length > 5) {
-          return result
-        }
+        return result
       } catch (error) {
-        console.warn('AI image analysis failed, falling back to local OCR pipeline:', error)
+        console.error('AI image analysis failed:', error)
+        throw error
       }
     }
-    const text = await this.extractTextFromImage(imageBuffer)
-    const tags = await this.extractStructuredContent(text)
-    return { text, tags }
-  }
-
-  async extractTextFromImage(imageBuffer: Buffer): Promise<string> {
-    if (!this.isWorkerInitialized) {
-      await this.initialize()
-    }
-
-    try {
-      const result = await this.tesseractWorker!.recognize(imageBuffer)
-      const raw = result.data.text || ''
-      const normalized = raw
-        .replace(/[\t\r]+/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .replace(/[^\S\n]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim()
-      return normalized
-    } catch (error) {
-      console.error('OCR extraction failed:', error)
-      throw error
-    }
+    throw new Error('No AI engine available for image analysis')
   }
 
   async extractStructuredContent(text: string): Promise<Tag[]> {
@@ -481,10 +446,4 @@ export class ContentAnalyzer {
     return null
   }
 
-  async terminate(): Promise<void> {
-    if (this.tesseractWorker) {
-      await this.tesseractWorker.terminate()
-      this.isWorkerInitialized = false
-    }
-  }
 }

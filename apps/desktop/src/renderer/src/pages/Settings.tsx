@@ -179,7 +179,7 @@ export default function Settings(): React.JSX.Element {
   const handleExportLogs = async () => {
     try {
       const result = await window.api.logs.export()
-      if (result.success) {
+      if (result.success && result.content) {
         // 创建下载链接
         const blob = new Blob([result.content], { type: 'text/plain' })
         const url = URL.createObjectURL(blob)

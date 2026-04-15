@@ -74,6 +74,10 @@ export interface WindowAPI {
   onFocus: (callback: () => void) => void
 }
 
+export interface LogsAPI {
+  export: () => Promise<{ success: boolean; content?: string; error?: string }>
+}
+
 export interface API {
   monitoring: MonitoringAPI
   database: DatabaseAPI
@@ -82,6 +86,7 @@ export interface API {
   shortcut: ShortcutAPI
   window: WindowAPI
   plugins: PluginsAPI
+  logs: LogsAPI
 }
 
 declare global {
