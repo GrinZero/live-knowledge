@@ -16,7 +16,9 @@ export const TodoReview = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [syncResults, setSyncResults] = useState<Record<string, { status: string; error?: string }>>({});
+  const [syncResults, setSyncResults] = useState<
+    Record<string, { status: string; error?: string }>
+  >({});
 
   useEffect(() => {
     if (sessionId) {
@@ -49,10 +51,16 @@ export const TodoReview = () => {
       const result = await response.json();
 
       if (result.success) {
-        const resultsMap = result.results.reduce((acc: any, res: any) => {
-          acc[res.id] = { status: res.status, error: res.error };
-          return acc;
-        }, {});
+        const resultsMap = result.results.reduce(
+          (
+            acc: Record<string, { status: string; error?: string }>,
+            res: { id: string; status: string; error?: string },
+          ) => {
+            acc[res.id] = { status: res.status, error: res.error };
+            return acc;
+          },
+          {},
+        );
         setSyncResults(resultsMap);
       } else {
         setError(result.error || "Sync failed");
@@ -70,7 +78,9 @@ export const TodoReview = () => {
   };
 
   const updateTodo = (id: string, updates: Partial<TodoItem>) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    );
   };
 
   if (loading) {
@@ -86,7 +96,10 @@ export const TodoReview = () => {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-destructive">
         <p className="mb-4">{error}</p>
-        <button onClick={() => window.location.reload()} className="px-4 py-2 border rounded hover:bg-muted">
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 border rounded hover:bg-muted"
+        >
           重试
         </button>
       </div>
@@ -110,7 +123,11 @@ export const TodoReview = () => {
           disabled={syncing || todos.length === 0}
           className="flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50"
         >
-          {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+          {syncing ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          ) : (
+            <Send className="w-4 h-4 mr-2" />
+          )}
           同步到第三方应用
         </button>
       </div>
@@ -119,12 +136,17 @@ export const TodoReview = () => {
         {todos.map((todo) => {
           const result = syncResults[todo.id];
           return (
-            <div key={todo.id} className="p-4 border rounded-lg bg-card group relative">
+            <div
+              key={todo.id}
+              className="p-4 border rounded-lg bg-card group relative"
+            >
               <div className="flex items-start gap-3">
                 <input
                   type="text"
                   value={todo.title}
-                  onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
+                  onChange={(e) =>
+                    updateTodo(todo.id, { title: e.target.value })
+                  }
                   className="flex-1 font-medium bg-transparent border-none focus:ring-1 focus:ring-primary rounded p-1"
                 />
                 {!result && (
@@ -148,7 +170,9 @@ export const TodoReview = () => {
               </div>
               <textarea
                 value={todo.content || ""}
-                onChange={(e) => updateTodo(todo.id, { content: e.target.value })}
+                onChange={(e) =>
+                  updateTodo(todo.id, { content: e.target.value })
+                }
                 placeholder="添加备注..."
                 className="w-full mt-2 text-sm text-muted-foreground bg-transparent border-none focus:ring-1 focus:ring-primary rounded p-1 resize-none"
                 rows={2}
@@ -160,8 +184,20 @@ export const TodoReview = () => {
 
       {Object.keys(syncResults).length > 0 && (
         <div className="mt-4 p-4 bg-muted/30 rounded-lg text-sm flex justify-between items-center">
-          <span>同步任务完成 ({Object.values(syncResults).filter(r => r.status === "synced").length}/{todos.length})</span>
-          <button onClick={() => window.close()} className="text-primary hover:underline">关闭窗口</button>
+          <span>
+            同步任务完成 (
+            {
+              Object.values(syncResults).filter((r) => r.status === "synced")
+                .length
+            }
+            /{todos.length})
+          </span>
+          <button
+            onClick={() => window.close()}
+            className="text-primary hover:underline"
+          >
+            关闭窗口
+          </button>
         </div>
       )}
     </div>

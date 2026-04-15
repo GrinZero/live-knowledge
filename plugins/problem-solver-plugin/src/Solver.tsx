@@ -32,7 +32,7 @@ export const Solver: React.FC = () => {
           generateSolution(
             data.problem,
             data.screenshotPath,
-            controller.signal
+            controller.signal,
           );
         }
       } catch (error) {
@@ -49,7 +49,7 @@ export const Solver: React.FC = () => {
   const generateSolution = async (
     text: string,
     screenshotPath?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ) => {
     setLoading(true);
     try {
@@ -59,7 +59,7 @@ export const Solver: React.FC = () => {
           setSolution((prev) => prev + chunk);
         },
         screenshotPath,
-        signal
+        signal,
       );
     } catch (error) {
       if (signal?.aborted) return;

@@ -2,8 +2,8 @@
  * DeduplicationService Tests
  */
 
-import { DeduplicationService, createContentHash } from '../EventWorkflow/DeduplicationService'
-import { ContextStateGraph } from '../EventWorkflow/ContextStateGraph'
+import { DeduplicationService, createContentHash } from '../../EventWorkflow/DeduplicationService'
+import { ContextStateGraph } from '../../EventWorkflow/ContextStateGraph'
 import type { EventWorkflowConfig, Tag } from '../EventWorkflow/types'
 
 describe('DeduplicationService', () => {
@@ -49,11 +49,7 @@ describe('DeduplicationService', () => {
 
   describe('computeSimilarity', () => {
     it('should return 0 score for first event', () => {
-      const result = deduplicationService.computeSimilarity(
-        '00010001',
-        null,
-        Date.now()
-      )
+      const result = deduplicationService.computeSimilarity('00010001', null, Date.now())
 
       expect(result.compositeScore).toBe(0)
       expect(result.shouldDispatch).toBe(true)
@@ -61,10 +57,10 @@ describe('DeduplicationService', () => {
 
     it('should compute higher similarity for similar pHash', () => {
       // Add first node
-      graph.addNode('00000000', null, 'url', 'summary', 'text', [])
+      graph.addNode('0'.repeat(64), null, 'url', 'summary', 'text', [])
 
       const result = deduplicationService.computeSimilarity(
-        '00000000', // Same hash
+        '0'.repeat(64), // Same hash
         null,
         Date.now()
       )
@@ -73,10 +69,11 @@ describe('DeduplicationService', () => {
     })
 
     it('should compute lower similarity for different pHash', () => {
-      graph.addNode('00000000', null, 'url', 'summary', 'text', [])
+      // 64-bit pHash length
+      graph.addNode('0'.repeat(64), null, 'url', 'summary', 'text', [])
 
       const result = deduplicationService.computeSimilarity(
-        '11111111', // Different hash
+        '1'.repeat(64), // Different hash
         null,
         Date.now()
       )
@@ -95,10 +92,7 @@ describe('DeduplicationService', () => {
         shouldDispatch: false
       }
 
-      const decision = deduplicationService.makeDecision(
-        similarityResult,
-        'content-hash'
-      )
+      const decision = deduplicationService.makeDecision(similarityResult, 'content-hash')
 
       expect(decision.shouldSkip).toBe(true)
     })
@@ -112,10 +106,7 @@ describe('DeduplicationService', () => {
         shouldDispatch: true
       }
 
-      const decision = deduplicationService.makeDecision(
-        similarityResult,
-        'content-hash'
-      )
+      const decision = deduplicationService.makeDecision(similarityResult, 'content-hash')
 
       expect(decision.shouldSkip).toBe(false)
     })

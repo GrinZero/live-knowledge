@@ -1,7 +1,15 @@
 import { TodoReview } from "./TodoReview";
 
 // Register with LiveKnowledge global interface
-(window as any).LiveKnowledge.registerPlugin({
+declare global {
+  interface Window {
+    LiveKnowledge: {
+      registerPlugin: (plugin: unknown) => void;
+    };
+  }
+}
+
+window.LiveKnowledge.registerPlugin({
   id: "todo-sync",
   routes: [
     {

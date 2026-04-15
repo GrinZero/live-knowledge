@@ -54,7 +54,9 @@ export async function analyzeContextNode(
     const analyzedText = aiResult.text
     const analyzedTags: Tag[] = aiResult.tags
 
-    console.log(`[analyzeContext] Analysis complete: "${analyzedText.slice(0, 50)}..." with ${analyzedTags.length} tags`)
+    console.log(
+      `[analyzeContext] Analysis complete: "${analyzedText.slice(0, 50)}..." with ${analyzedTags.length} tags`
+    )
 
     // Update captured frames with analysis results
     const updatedFrames = state.capturedFrames.map((frame, idx) => ({

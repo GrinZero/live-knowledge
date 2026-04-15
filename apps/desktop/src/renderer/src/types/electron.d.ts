@@ -77,6 +77,9 @@ export interface WindowAPI {
 export interface LogsAPI {
   export: () => Promise<{ success: boolean; content?: string; error?: string }>
 }
+export interface ApiServerAPI {
+  getPort: () => Promise<number>
+}
 
 export interface API {
   monitoring: MonitoringAPI
@@ -87,6 +90,7 @@ export interface API {
   window: WindowAPI
   plugins: PluginsAPI
   logs: LogsAPI
+  apiServer: ApiServerAPI
 }
 
 declare global {

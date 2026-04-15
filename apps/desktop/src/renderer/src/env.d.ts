@@ -123,7 +123,10 @@ declare global {
         onFocus: (callback: () => void) => void
       }
       logs: {
-        export: () => Promise<{ success: boolean; content?: string; error?: string }>
+        export: () => Promise<{ success: boolean; content?: string; path?: string; error?: string }>
+      }
+      apiServer: {
+        getPort: () => Promise<number>
       }
     }
   }

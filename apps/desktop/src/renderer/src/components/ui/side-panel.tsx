@@ -14,19 +14,23 @@ interface SidePanelProps {
 const widthClasses = {
   sm: 'w-80',
   md: 'w-96',
-  lg: 'w-[28rem]',
+  lg: 'w-[28rem]'
 }
 
-export function SidePanel({ open, onClose, title, children, width = 'md', className }: SidePanelProps) {
+export function SidePanel({
+  open,
+  onClose,
+  title,
+  children,
+  width = 'md',
+  className
+}: SidePanelProps) {
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/10 transition-opacity"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/10 transition-opacity" onClick={onClose} />
 
       {/* Panel */}
       <div
@@ -40,12 +44,7 @@ export function SidePanel({ open, onClose, title, children, width = 'md', classN
         {title && (
           <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8 rounded-lg"
-            >
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg">
               <X className="h-4 w-4" />
             </Button>
           </div>

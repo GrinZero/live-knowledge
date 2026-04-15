@@ -28,13 +28,15 @@ export class APIServer {
   private sseClients: Map<string, { res: express.Response; lastEventId: string | null }> = new Map()
   private ssePollInterval: NodeJS.Timeout | null = null
 
+  private server: import('http').Server | null = null
+
   constructor(
     databaseService: DatabaseService,
     monitoringService: MonitoringService,
     presentationService: PresentationService,
     pluginManager: PluginManager,
     aiEngine: AIEngine,
-    port: number = 3000
+    port: number = 0
   ) {
     this.app = express()
     this.databaseService = databaseService
@@ -631,13 +633,17 @@ export class APIServer {
         const events = await this.databaseService.getLatestEventsSince(sinceEventId)
         if (events.length > 0) {
           const processedEvents = this.processEventScreenshots(events)
-          res.write(`data: ${JSON.stringify({ type: 'init', events: processedEvents })}\n\n`)
-          this.sseClients.set(clientId, { res, lastEventId: events[0].id })
+          if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ type: 'init', events: processedEvents })}\n\n`)
+            this.sseClients.set(clientId, { res, lastEventId: events[0].id })
+          }
         }
       } catch (error) {
-        res.write(
-          `data: ${JSON.stringify({ type: 'error', message: (error as Error).message })}\n\n`
-        )
+        if (!res.writableEnded) {
+          res.write(
+            `data: ${JSON.stringify({ type: 'error', message: (error as Error).message })}\n\n`
+          )
+        }
       }
 
       // 启动轮询（如果还没启动）
@@ -649,6 +655,16 @@ export class APIServer {
         if (this.sseClients.size === 0) {
           this.stopSsePolling()
         }
+      })
+
+      req.on('error', (err) => {
+        console.error('SSE request error:', err)
+        this.sseClients.delete(clientId)
+      })
+
+      res.on('error', (err) => {
+        console.error('SSE response error:', err)
+        this.sseClients.delete(clientId)
       })
     })
   }
@@ -662,6 +678,12 @@ export class APIServer {
 
       for (const [clientId, client] of this.sseClients) {
         try {
+          // Check if response is writable before attempting to write or fetch
+          if (client.res.writableEnded) {
+            this.sseClients.delete(clientId)
+            continue
+          }
+
           const events = await this.databaseService.getLatestEventsSince(
             client.lastEventId || undefined
           )
@@ -673,14 +695,25 @@ export class APIServer {
 
             if (newEvents.length > 0) {
               const processedEvents = this.processEventScreenshots(newEvents)
-              client.res.write(
-                `data: ${JSON.stringify({ type: 'update', events: processedEvents })}\n\n`
-              )
-              client.lastEventId = newEvents[0].id
+              if (!client.res.writableEnded) {
+                client.res.write(
+                  `data: ${JSON.stringify({ type: 'update', events: processedEvents })}\n\n`
+                )
+                client.lastEventId = newEvents[0].id
+              }
             }
           }
         } catch (error) {
           console.error(`SSE poll error for client ${clientId}:`, error)
+          // If the socket was closed prematurely, clean it up
+          if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            (error as { code: string }).code === 'ERR_STREAM_WRITE_AFTER_END'
+          ) {
+            this.sseClients.delete(clientId)
+          }
         }
       }
     }, 2000) // 每 2 秒检查一次
@@ -719,24 +752,40 @@ export class APIServer {
 
   // Removed setupSolverRoutes as it is now handled by the plugin itself
 
-  async start(): Promise<void> {
+  async start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.app.listen(this.port, (error?: Error) => {
-        if (error) {
-          reject(error)
-        } else {
-          console.log(`API server started on port ${this.port}`)
-          resolve()
+      this.server = this.app.listen(this.port, () => {
+        const address = this.server?.address()
+        if (address && typeof address === 'object') {
+          this.port = address.port
         }
+        console.log(`API server started on port ${this.port}`)
+        resolve(this.port)
+      })
+
+      this.server.on('error', (error: Error) => {
+        reject(error)
       })
     })
   }
 
   async stop(): Promise<void> {
+    this.stopSsePolling()
+
     return new Promise((resolve) => {
-      // Implementation for graceful shutdown
-      console.log('API server stopped')
-      resolve()
+      if (this.server) {
+        this.server.close(() => {
+          console.log('API server stopped')
+          this.server = null
+          resolve()
+        })
+      } else {
+        resolve()
+      }
     })
+  }
+
+  getPort(): number {
+    return this.port
   }
 }

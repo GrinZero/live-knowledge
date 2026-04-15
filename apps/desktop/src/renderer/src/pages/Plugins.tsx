@@ -1,6 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react'
-import { Plug, Plus, Settings, Code, FileText, Trash2, FileCode, Trash, CheckCircle, XCircle } from 'lucide-react'
+import {
+  Plug,
+  Plus,
+  Settings,
+  Code,
+  FileText,
+  Trash2,
+  FileCode,
+  Trash,
+  CheckCircle,
+  XCircle
+} from 'lucide-react'
 import { apiClient } from '../lib/api-client'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
@@ -87,7 +98,9 @@ export default function Plugins(): React.JSX.Element {
   const loadWebhookLogs = async () => {
     setLogsLoading(true)
     try {
-      const logs = (await window.api.plugins.invoke('webhook-plugin:getLogs')) as WebhookLogEntry[] | null
+      const logs = (await window.api.plugins.invoke('webhook-plugin:getLogs')) as
+        | WebhookLogEntry[]
+        | null
       setWebhookLogs(logs || [])
     } catch (error) {
       console.error('Failed to load webhook logs:', error)

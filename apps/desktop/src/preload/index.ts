@@ -88,12 +88,17 @@ const api = {
     uninstall: (id: string) => ipcRenderer.invoke('plugins:uninstall', id),
     openFileDialog: () => ipcRenderer.invoke('dialog:openFile'),
     // Plugin-specific IPC calls
-    invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+    invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
   },
 
   // Logs APIs
   logs: {
     export: () => ipcRenderer.invoke('logs:export')
+  },
+
+  // API Server APIs
+  apiServer: {
+    getPort: () => ipcRenderer.invoke('api:getPort')
   }
 }
 

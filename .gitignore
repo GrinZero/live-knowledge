@@ -11,3 +11,8 @@ out-smoke
 *.tgz
 
 settings.local.json
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/

@@ -44,7 +44,7 @@ export default function Settings(): React.JSX.Element {
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [quickCaptureShortcut, setQuickCaptureShortcut] = useState('CommandOrControl+Shift+S')
-  const [isCapturingShortcut, _setIsCapturingShortcut] = useState(false)
+  const [isCapturingShortcut] = useState(false)
   const [eventTypes, setEventTypes] = useState<EventType[]>([])
   const [eventFilter, setEventFilter] = useState<'all' | 'core' | 'plugin'>('all')
 
@@ -192,7 +192,7 @@ export default function Settings(): React.JSX.Element {
         URL.revokeObjectURL(url)
         toast.success('日志已导出')
       } else {
-        toast.error('导出日志失败: ' + result.error)
+        toast.error('导出日志失败: ' + (result.error || '未获取到内容'))
       }
     } catch (error) {
       console.error('Failed to export logs:', error)

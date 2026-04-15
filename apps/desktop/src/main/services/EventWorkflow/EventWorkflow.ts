@@ -70,10 +70,7 @@ export class EventWorkflow {
     this.screenshotDir = deps.screenshotDir
 
     // Initialize context graph
-    this.contextGraph = new ContextStateGraph(
-      config.maxGraphNodes,
-      config.evictionBatchSize
-    )
+    this.contextGraph = new ContextStateGraph(config.maxGraphNodes, config.evictionBatchSize)
 
     // Initialize deduplication service
     this.deduplicationService = new DeduplicationService(config, this.contextGraph)
@@ -278,7 +275,9 @@ export class EventWorkflow {
           if (this.state.workflowState === 'error') {
             // Exponential backoff for retries
             const delay = this.config.retryBaseDelayMs * Math.pow(2, this.state.retryCount)
-            console.log(`[EventWorkflow] Retrying in ${delay}ms (attempt ${this.state.retryCount + 1})`)
+            console.log(
+              `[EventWorkflow] Retrying in ${delay}ms (attempt ${this.state.retryCount + 1})`
+            )
           }
         }
         break
