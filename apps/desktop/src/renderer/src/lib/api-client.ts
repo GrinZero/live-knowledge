@@ -1,25 +1,19 @@
 let BASE_URL = 'http://localhost:3000/api'
 
-// Initialize BASE_URL dynamically
-const initBaseUrl = async () => {
+const resolveBaseUrl = async () => {
   try {
     if (window.api && window.api.apiServer) {
       const port = await window.api.apiServer.getPort()
-      BASE_URL = `http://localhost:${port}/api`
+      return `http://localhost:${port}/api`
     }
   } catch (error) {
-    console.warn('Failed to fetch dynamic API port, falling back to 3000:', error)
+    console.warn('Failed to fetch dynamic API port, falling back to previous base URL:', error)
   }
+  return BASE_URL
 }
 
-// Call it immediately, but API calls might happen before it finishes.
-// In practice, we can wrap fetch to ensure baseUrl is ready.
-let baseUrlPromise: Promise<void> | null = null
 const getBaseUrl = async () => {
-  if (!baseUrlPromise) {
-    baseUrlPromise = initBaseUrl()
-  }
-  await baseUrlPromise
+  BASE_URL = await resolveBaseUrl()
   return BASE_URL
 }
 

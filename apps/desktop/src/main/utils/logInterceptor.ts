@@ -4,9 +4,9 @@
  * 插件代码: [Plugin:xxx]
  *
  * 打包后日志文件位置:
- * - macOS: ~/Library/Logs/live-knowledge-app/
- * - Windows: %USERPROFILE%\AppData\Roaming\live-knowledge-app\logs\
- * - Linux: ~/.config/live-knowledge-app/logs/
+ * - macOS: ~/Library/Logs/<appName>/
+ * - Windows: %USERPROFILE%\AppData\Roaming\<appName>\logs\
+ * - Linux: ~/.config/<appName>/logs/
  */
 import log from 'electron-log'
 import chalk from 'chalk'
@@ -14,7 +14,7 @@ import { app } from 'electron'
 import { join } from 'path'
 
 // electron-log v5 配置
-const logDir = join(app.getPath('home'), 'Library/Logs/live-knowledge-app')
+const logDir = join(app.getPath('home'), `Library/Logs/${app.getName()}`)
 const logFile = join(logDir, 'main.log')
 
 log.transports.file.resolvePathFn = () => logFile

@@ -21,12 +21,32 @@ export interface RendererPlugin {
 
 const registeredPlugins: RendererPlugin[] = []
 const listeners: (() => void)[] = []
+let pluginScriptVersion = 0
 
 export function registerRendererPlugin(plugin: RendererPlugin) {
   // Avoid duplicates
   if (registeredPlugins.find((p) => p.id === plugin.id)) return
   registeredPlugins.push(plugin)
   notifyListeners()
+}
+
+function clearRegisteredPlugins() {
+  if (registeredPlugins.length === 0) return
+  registeredPlugins.splice(0, registeredPlugins.length)
+  notifyListeners()
+}
+
+function removePluginScript(id: string) {
+  const existingScript = document.getElementById(`plugin-script-${id}`)
+  if (existingScript) {
+    existingScript.remove()
+  }
+}
+
+export function buildPluginScriptUrl(scriptPath: string): string {
+  pluginScriptVersion += 1
+  const separator = scriptPath.includes('?') ? '&' : '?'
+  return `${scriptPath}${separator}v=${pluginScriptVersion}`
 }
 
 export function subscribeToPluginUpdates(listener: () => void) {
@@ -81,16 +101,16 @@ export async function loadInstalledPlugins() {
     const plugins = await window.api.plugins.getRendererPlugins()
     console.log('Loading renderer plugins:', plugins)
 
+    clearRegisteredPlugins()
+
+    document.querySelectorAll('[id^="plugin-script-"]').forEach((node) => node.remove())
+
     for (const plugin of plugins) {
-      // 每次都移除旧标签（如果存在），强制重新加载，确保使用最新插件代码
-      const existingScript = document.getElementById(`plugin-script-${plugin.id}`)
-      if (existingScript) {
-        existingScript.remove()
-      }
+      removePluginScript(plugin.id)
 
       const script = document.createElement('script')
       script.id = `plugin-script-${plugin.id}`
-      script.src = plugin.scriptPath
+      script.src = buildPluginScriptUrl(plugin.scriptPath)
       script.async = true
       script.onload = () => console.log(`Loaded plugin script: ${plugin.id}`)
       script.onerror = (e) => console.error(`Failed to load plugin script: ${plugin.id}`, e)
@@ -99,4 +119,10 @@ export async function loadInstalledPlugins() {
   } catch (error) {
     console.error('Failed to load installed plugins:', error)
   }
+}
+
+export function __resetPluginRegistryForTests() {
+  clearRegisteredPlugins()
+  pluginScriptVersion = 0
+  document.querySelectorAll('[id^="plugin-script-"]').forEach((node) => node.remove())
 }

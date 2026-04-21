@@ -1,4 +1,4 @@
-import { desktopCapturer, nativeImage, systemPreferences } from 'electron'
+import { desktopCapturer, nativeImage, systemPreferences, dialog, shell } from 'electron'
 import { Rectangle } from '../../renderer/src/types'
 
 export class ScreenWatcher {
@@ -18,9 +18,23 @@ export class ScreenWatcher {
       if (process.platform === 'darwin') {
         const status = systemPreferences.getMediaAccessStatus('screen')
         console.log('Screen recording permission status:', status)
-        if (status === 'denied') {
+        if (status !== 'granted') {
+          await dialog
+            .showMessageBox({
+              type: 'warning',
+              title: '需要屏幕录制权限',
+              message: '请在"系统设置 > 隐私与安全性 > 屏幕录制"中启用本应用的权限，然后重启应用。',
+              buttons: ['打开系统设置', '取消']
+            })
+            .then(({ response }) => {
+              if (response === 0) {
+                shell.openExternal(
+                  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+                )
+              }
+            })
           throw new Error(
-            'Screen recording permission denied. Please enable it in System Settings > Privacy & Security > Screen Recording.'
+            'Screen recording permission not granted. Please enable it in System Settings > Privacy & Security > Screen Recording and restart the app.'
           )
         }
       }

@@ -29,6 +29,7 @@ import { PluginManager } from './services/PluginManager'
 import { DevToolsPlugin } from './services/plugins/DevToolsPlugin'
 import { pathToFileURL } from 'url'
 import { getLogFilePath } from './utils/logInterceptor'
+import { resolveMediaFilePath } from './utils/mediaProtocol'
 
 // Inject system proxy settings if provided in env
 // We do not hardcode defaults anymore, relying on process.env passed from shell
@@ -524,8 +525,7 @@ function setupShortcutHandlers(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.moego.supervision')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -536,36 +536,26 @@ app.whenReady().then(async () => {
 
   // Register custom protocol for serving local media files
   // Standard and secure way to load local files in Electron
-  protocol.handle('media', (request) => {
-    // 1. Strip 'media://' to get the raw path
-    let urlPath = request.url.replace('media://', '')
-
-    // 2. Decode URI component to handle spaces (%20) and other special characters
-    urlPath = decodeURIComponent(urlPath)
-
-    // 3. Handle path normalization based on OS
-    // On Windows, paths might look like /C:/Users/... or C:/Users/...
-    // On macOS/Linux, paths look like /Users/...
-    let finalPath = urlPath
-
-    if (process.platform === 'win32') {
-      // Remove leading slash if it precedes a drive letter (e.g., /C:/... -> C:/...)
-      if (finalPath.startsWith('/') && finalPath.includes(':')) {
-        finalPath = finalPath.slice(1)
-      }
-    } else {
-      // Ensure leading slash for POSIX paths (e.g., Users/... -> /Users/...)
-      if (!finalPath.startsWith('/')) {
-        finalPath = '/' + finalPath
-      }
-    }
+  protocol.handle('media', async (request) => {
+    let finalPath = ''
 
     // 4. Use net.fetch with file:// protocol
     // pathToFileURL handles conversion to proper file URL (e.g., spaces -> %20, backslashes on windows)
     try {
-      return net.fetch(pathToFileURL(finalPath).toString())
+      finalPath = resolveMediaFilePath(request.url)
+      const response = await net.fetch(pathToFileURL(finalPath).toString())
+      const headers = new Headers(response.headers)
+      headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+      headers.set('Pragma', 'no-cache')
+      headers.set('Expires', '0')
+
+      return new Response(await response.arrayBuffer(), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      })
     } catch (error) {
-      console.error('Failed to fetch media:', error)
+      console.error(`Failed to fetch media: ${request.url} -> ${finalPath}`, error)
       return new Response('Not Found', { status: 404 })
     }
   })

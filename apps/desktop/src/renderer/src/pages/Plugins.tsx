@@ -24,6 +24,7 @@ import {
 import { Button } from '../components/ui/button'
 import { SchemaForm } from '../components/SchemaForm'
 import { cn } from '@/lib/utils'
+import { loadInstalledPlugins } from '../plugin-registry'
 
 interface Plugin {
   id: string
@@ -76,7 +77,8 @@ export default function Plugins(): React.JSX.Element {
   const togglePlugin = async (id: string, enabled: boolean) => {
     try {
       await apiClient.plugins.toggle(id, enabled)
-      loadPlugins()
+      await loadPlugins()
+      await loadInstalledPlugins()
     } catch (error) {
       console.error('Failed to toggle plugin:', error)
     }
@@ -155,7 +157,8 @@ export default function Plugins(): React.JSX.Element {
       const filePath = await window.api.plugins.openFileDialog()
       if (filePath) {
         await window.api.plugins.install(filePath)
-        loadPlugins()
+        await loadPlugins()
+        await loadInstalledPlugins()
         alert('插件安装成功！')
       }
     } catch (error) {
@@ -169,7 +172,8 @@ export default function Plugins(): React.JSX.Element {
     if (!confirm('确定要卸载该插件吗？卸载后将删除插件文件。')) return
     try {
       await window.api.plugins.uninstall(pluginId)
-      loadPlugins()
+      await loadPlugins()
+      await loadInstalledPlugins()
       if (selectedPlugin?.id === pluginId) {
         setSelectedPlugin(null)
       }

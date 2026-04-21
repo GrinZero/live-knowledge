@@ -3,6 +3,7 @@ import { app } from 'electron'
 import path from 'path'
 import { promises as fs } from 'fs'
 import { v4 as uuidv4 } from 'uuid'
+import { buildAIConfigSettings } from './settingsPersistence'
 import {
   User,
   MonitoringSession,
@@ -804,18 +805,20 @@ export class DatabaseService {
 
   async saveAIConfig(
     userId: string,
-    config: { apiKey: string; provider: string; model: string; proxyUrl?: string; baseUrl?: string }
+    config: {
+      apiKey: string
+      provider: string
+      model: string
+      proxyUrl?: string
+      baseUrl?: string
+      language?: 'zh' | 'en'
+    }
   ): Promise<void> {
     const existing = await this.getAIConfig(userId)
     const now = new Date().toISOString()
 
     const credentials = { apiKey: config.apiKey }
-    const settings = {
-      provider: config.provider,
-      model: config.model,
-      proxyUrl: config.proxyUrl,
-      baseUrl: config.baseUrl
-    }
+    const settings = buildAIConfigSettings(config)
 
     if (existing) {
       await this.run(
